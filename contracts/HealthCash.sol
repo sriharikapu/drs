@@ -31,11 +31,11 @@ contract HealthCash is StandardToken, Ownable {
     * transferable to the Health Nexus blockchain once 
     * Health Nexus is deployed for public use.
     */
-    bool public enableHealthNexusTransfers = false;
+    bool public healthNexusTransfersEnabled = false;
     uint public hntNonce = 0; 
 
     modifier onlyWhenTransferable() {
-        if (now <= saleEnds && now >= saleStarts) {
+        if (now >= saleStarts && now <= saleEnds) {
             require(msg.sender == saleContract);
         }
         _;
@@ -127,6 +127,7 @@ contract HealthCash is StandardToken, Ownable {
     event TransferToHealthNexus(address indexed _from, address indexed _to, uint _value, bytes32 _transferID);
 
     function transferToHealthNexus(address _to, uint _value) returns (bool) {
+        require(healthNexusTransfersEnabled);
         assert(burn(_value));
         hntNonce += 1;
         bytes32 transferID = keccak256(now,hntNonce,_to);
@@ -135,6 +136,7 @@ contract HealthCash is StandardToken, Ownable {
     }
 
     function transferToHealthNexusFrom(address _from, address _to, uint _value) returns (bool) {
+        require(healthNexusTransfersEnabled);        
         assert(transferFrom(_from, msg.sender, _value));
         assert(burn(_value));
         hntNonce += 1;
@@ -143,6 +145,11 @@ contract HealthCash is StandardToken, Ownable {
         return true;
     }
 
+    function enableHealthNexusTransfers(bool enabled) 
+    onlyOwner 
+    {
+        healthNexusTransfersEnabled = enabled;
+    }
     /**
     * Admin Only
     **/

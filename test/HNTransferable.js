@@ -15,7 +15,15 @@ contract('HealthCash :: Health Nexus Transferable', function(accounts) {
     this.token = await HealthCash.new(100, startDateTime, endDateTime, accounts[0])
   })
 
+  it('should not allow transfers to Health Nexus until enabled', async function() {
+    let validAddress = accounts[1]
+    await this.token.transferToHealthNexus(validAddress,10)
+    let totalSupply = await this.token.totalSupply()    
+    totalSupply.should.be.bignumber.equal(100)
+  })
+
   it('should return the correct token total after tranfering some to Health Nexus', async function() {
+    await this.token.enableHealthNexusTransfers(true)    
     let validAddress = accounts[1]
     await this.token.transferToHealthNexus(validAddress,10)
     let totalSupply = await this.token.totalSupply()    
@@ -23,6 +31,7 @@ contract('HealthCash :: Health Nexus Transferable', function(accounts) {
   })
 
   it('should return the correct balance after tranfering some to Health Nexus', async function() {
+    await this.token.enableHealthNexusTransfers(true)        
     let validAddress = accounts[1]
     await this.token.transferToHealthNexus(validAddress,10)
     let balance = await this.token.balanceOf(accounts[0])
@@ -30,6 +39,7 @@ contract('HealthCash :: Health Nexus Transferable', function(accounts) {
   })
 
   it('should be unable to transfer too many tokens', async function() {
+    await this.token.enableHealthNexusTransfers(true)        
     let validAddress = accounts[1]
     await this.token.transferToHealthNexus(validAddress,900)
     
@@ -41,6 +51,7 @@ contract('HealthCash :: Health Nexus Transferable', function(accounts) {
   })
 
   it('should return the correct balance after transfering from', async function() {
+    await this.token.enableHealthNexusTransfers(true)        
     await this.token.transfer(accounts[1], 100)
     await this.token.approve(accounts[0], 10, {from: accounts[1]})
     let validAddress = accounts[1]
@@ -50,6 +61,7 @@ contract('HealthCash :: Health Nexus Transferable', function(accounts) {
   })
 
   it('should be unable to transfer from an account without authorization', async function() {
+    await this.token.enableHealthNexusTransfers(true)        
     await this.token.transfer(accounts[1], 100)
     let validAddress = accounts[1]
     await this.token.transferToHealthNexusFrom(accounts[1],validAddress,10)
@@ -58,6 +70,7 @@ contract('HealthCash :: Health Nexus Transferable', function(accounts) {
   })
 
   it('should increment the Health Nexus Tranfer Nonce', async function() {
+    await this.token.enableHealthNexusTransfers(true)        
     let validAddress = accounts[1]
     await this.token.transferToHealthNexus(validAddress,10)
     
@@ -71,6 +84,7 @@ contract('HealthCash :: Health Nexus Transferable', function(accounts) {
   })
 
   it('should create a valid Health Nexus Tranfer Event', async function() {
+    await this.token.enableHealthNexusTransfers(true)    
     let validAddress = accounts[1]
     let tx = await this.token.transferToHealthNexus(validAddress,10)
 
