@@ -20,9 +20,6 @@ contract HealthDRS is Ownable {
     struct Ring {
         bytes url;        
 
-        mapping(bytes32 => Key) public key;
-        bytes32[] public keys;
-
     }
 
     function HealthDRS(StandardToken _token, address admin) {
@@ -31,8 +28,6 @@ contract HealthDRS is Ownable {
     }
 
 
-
-  mapping(bytes32 => Key) public allKeys;
   bytes32[] public keyList;
 
 
