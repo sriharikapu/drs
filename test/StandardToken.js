@@ -10,8 +10,8 @@ var HealthCash = artifacts.require("./HealthCash.sol")
 contract('HealthCash :: StandardToken', function(accounts) {
 
   beforeEach(async function() {
-    var startDateTime = new Date('2017-09-25').getTime()/1000
-    var endDateTime = new Date('2017-10-25').getTime()/1000
+    var startDateTime = new Date('2017-12-25').getTime()/1000
+    var endDateTime = new Date('2018-1-25').getTime()/1000
     this.token = await HealthCash.new(100, startDateTime, endDateTime, accounts[0])
   })
 

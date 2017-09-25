@@ -69,13 +69,13 @@ contract HealthCash is StandardToken, Ownable {
         saleContract = msg.sender;
         transferOwnership(admin); 
 
-        //Deploy initial DRS. The DRS contract is updateable 
+        //Deploy HealthDRS
         healthDRS = address(new HealthDRS(this, admin));
     }
 
     /**
     * HLTH can not be transfered until after the sale
-    * */
+    */
     function transfer(address _to, uint _value)
     withPayloadSize(2 * 32)
     onlyWhenTransferable
@@ -97,7 +97,7 @@ contract HealthCash is StandardToken, Ownable {
     * HLTH is Burnable
     * Unsold HLTH will be burned after the token sale completes. 
     * HLTH transfered to Health Nexus will also be burned. 
-    * */
+    */
     event Burn(address indexed _burner, uint _value);
 
     function burn(uint _value) 
@@ -126,6 +126,16 @@ contract HealthCash is StandardToken, Ownable {
     */
     event TransferToHealthNexus(address indexed _from, address indexed _to, uint _value, bytes32 _transferID);
 
+    /**
+    * [Admin Only]
+    * enable/disable Health Nexus transfers
+    */
+    function enableHealthNexusTransfers(bool enabled) 
+    onlyOwner 
+    {
+        healthNexusTransfersEnabled = enabled;
+    }
+
     function transferToHealthNexus(address _to, uint _value) returns (bool) {
         require(healthNexusTransfersEnabled);
         assert(burn(_value));
@@ -145,35 +155,40 @@ contract HealthCash is StandardToken, Ownable {
         return true;
     }
 
-    function enableHealthNexusTransfers(bool enabled) 
-    onlyOwner 
-    {
-        healthNexusTransfersEnabled = enabled;
-    }
     /**
-    * Admin Only
-    **/
+    * HLTH can be spent to use HealthDRS
+    * the decentralized record and key 
+    * system that was deployed alongside
+    * HLTH. Using HealthDRS is voluntary. 
+    * You have to authorize it explicitly.
+    */
+
+    function authorizeHealthDRS(uint _value) returns (bool) {
+        return approve(healthDRS,_value);
+    }
 
     /**
+    * [Admin Only]
+    * As new version of the DRS are released this contract 
+    * will need to be updated. 
+    */
+    function updateHealthDRS(address _healthDRS, bytes _healthDRSurl)
+    onlyOwner
+    {
+        healthDRS = _healthDRS;
+        healthDRSurl = _healthDRSurl;       
+    }
+
+    /**
+    * [Admin Only] 
     * If, for some reason, this contract has any tokens 
     * erroneously assigned to it this will allow the 
     * admin to access them. 
-    **/
+    */
     function recoverErrantTokens( ERC20 token, uint amount ) 
     onlyOwner 
     {
         token.transfer(owner, amount);
-    }
-
-    /**
-    * As new version of the DRS are released this contract 
-    * will need to be updated. 
-    **/
-    function updateHealthDRS(address _healthDRS, bytes _healthDRSurl)
-    onlyOwner
-    {
-       healthDRS = _healthDRS;
-       healthDRSurl = _healthDRSurl;       
     }
 
 }

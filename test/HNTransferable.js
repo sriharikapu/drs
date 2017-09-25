@@ -83,7 +83,7 @@ contract('HealthCash :: Health Nexus Transferable', function(accounts) {
     hntNonce.should.be.bignumber.equal(2)
   })
 
-  it('should create a valid Health Nexus Tranfer Event', async function() {
+  it('should create a valid Health Nexus Transfer Event', async function() {
     await this.token.enableHealthNexusTransfers(true)    
     let validAddress = accounts[1]
     let tx = await this.token.transferToHealthNexus(validAddress,10)
