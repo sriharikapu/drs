@@ -1,13 +1,12 @@
 pragma solidity ^0.4.14;
 
-import 'zeppelin-solidity/contracts/token/StandardToken.sol';
 import 'zeppelin-solidity/contracts/ownership/Ownable.sol';
-import './HealthCash.sol';
+import './BurnableToken.sol';
 
 contract HealthDRS is Ownable {
 
-    HealthCash public token;
-    uint public registrationPrice = 100000000000000000; // 1 HLTH
+    BurnableToken public token;
+    uint public registrationPrice = 1; 
 
 
     struct Key {
@@ -24,11 +23,6 @@ contract HealthDRS is Ownable {
 
     }
     bytes32[] public keyList;
-
-    function HealthDRS(HealthCash _token, address admin) {
-        token = _token;
-        transferOwnership(admin);         
-    }
 
     /*
     * HLTH tokens can not be spent using HealthDRS 
@@ -57,7 +51,8 @@ contract HealthDRS is Ownable {
        bytes32 key = keccak256(url);
 
        //HLTH spent to register are burned
-       token.burnFrom(msg.sender,registrationPrice); 
+       token.transferFrom(msg.sender, address(this), registrationPrice);
+       token.burn(registrationPrice); 
 
        return key;
     }
@@ -67,7 +62,7 @@ contract HealthDRS is Ownable {
     * Allow admin access to tokens transfered to this 
     * contract. 
     */
-    function recoverTokens(ERC20 _token, uint amount) 
+    function recoverTokens(BurnableToken _token, uint amount) 
     onlyOwner 
     {
         _token.transfer(owner, amount);
@@ -75,9 +70,14 @@ contract HealthDRS is Ownable {
 
     function setRegistrationPrice(uint _price) 
     onlyOwner 
-    returns (bool)
     {
         registrationPrice = _price;
     }
     
+    function setHealthCashToken(BurnableToken _token) 
+    onlyOwner 
+    {
+        token = _token;
+    }
+
 }

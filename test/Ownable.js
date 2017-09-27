@@ -4,14 +4,12 @@ const should = require('chai')
   .use(require('chai-bignumber')(BigNumber))
   .should()
 
-var HealthCash = artifacts.require("./HealthCash.sol")
+var HealthDRS = artifacts.require("./HealthDRS.sol")
 
-contract('HealthCash :: Ownable', function(accounts) {
+contract('HealthDRS :: Ownable', function(accounts) {
 
   beforeEach(async function() {
-    var startDateTime = new Date('2017-08-25T20:23:01.804Z').getTime()
-    var endDateTime = new Date('2017-10-25T20:23:01.804Z').getTime()    
-    this.ownable = await HealthCash.new(100, startDateTime, endDateTime, accounts[0])
+    this.ownable = await HealthDRS.new()
   })
 
   it('should have an owner', async function() {

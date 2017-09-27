@@ -5,19 +5,27 @@ const should = require('chai')
   .use(require('chai-bignumber')(BigNumber))
   .should()
 
-var HealthCash = artifacts.require("./HealthCash.sol")
+var HealthCashMock = artifacts.require('./helpers/HealthCashMock.sol');
 var HealthDRS = artifacts.require("./HealthDRS.sol")
 import isAddress from './helpers/isAddress'
 
 contract('HealthDRS :: Token', function(accounts) {
 
   beforeEach(async function() {
-    var startDateTime = new Date('2017-12-25').getTime()/1000
-    var endDateTime = new Date('2018-1-25').getTime()/1000  
-    this.token = await HealthCash.new(100, startDateTime, endDateTime, accounts[0])
-    const healthDRSAddress = await this.token.healthDRS()
-    this.drs = HealthDRS.at(healthDRSAddress)     
-    await this.drs.setRegistrationPrice(1)   
+    this.token = await HealthCashMock.new()
+    this.drs = await HealthDRS.new()
+    await this.drs.setHealthCashToken(this.token.address)
+  })
+
+  it('should have a valid address as token contract', async function() {
+    let tokenAddress = await this.drs.token()
+    let valid = isAddress(tokenAddress)
+    valid.should.be.equal(true)
+  })
+
+  it('should correctly reference the token contract', async function() {
+    const tokenAddress = await this.drs.token()
+    tokenAddress.should.be.equal(this.token.address)  
   })
 
   it('should start unable to spend tokens', async function() {
@@ -26,13 +34,14 @@ contract('HealthDRS :: Token', function(accounts) {
   })  
 
   it('should return the correct allowance after authorizing', async function() {
-    await this.token.authorizeHealthDRS(100)
+    await this.token.approve(this.drs.address, 100);
     const allowance = await this.drs.authorizedToSpend()
     allowance.should.be.bignumber.equal(100)  
   }) 
 
+
   it('should return the correct total after registering a gatekeeper', async function() {
-    await this.token.authorizeHealthDRS(1)
+    await this.token.approve(this.drs.address, 1);
     let key = await this.drs.registerGatekeeper('url-here')
 
     let balance = await this.token.balanceOf(accounts[0])

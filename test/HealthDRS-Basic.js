@@ -5,47 +5,35 @@ const should = require('chai')
   .use(require('chai-bignumber')(BigNumber))
   .should()
 
-var HealthCash = artifacts.require("./HealthCash.sol")
+var HealthCashMock = artifacts.require('./helpers/HealthCashMock.sol');
 var HealthDRS = artifacts.require("./HealthDRS.sol")
 import isAddress from './helpers/isAddress'
 
-contract('HealthCash :: HealthDRS', function(accounts) {
+contract('HealthDRS :: Admin', function(accounts) {
 
   beforeEach(async function() {
-    var startDateTime = new Date('2017-08-25T20:23:01.804Z').getTime()
-    var endDateTime = new Date('2017-10-25T20:23:01.804Z').getTime()    
-    this.token = await HealthCash.new(100, startDateTime, endDateTime, accounts[0])
+    this.token = await HealthCashMock.new()
+    this.drs = await HealthDRS.new()
+    await this.drs.setHealthCashToken(this.token.address)
   })
+  
+  it('should enable the token to be updated by admin', async function() {
+    let firstTokenAddress = await this.drs.token()
+    await this.drs.setHealthCashToken(accounts[1])
+    let secondTokenAddress = await this.drs.token()
 
-  it('should deploy HealthDRS along with token', async function() {
-    let healthDRS = await this.token.healthDRS()
-    let valid = isAddress(healthDRS)
-    valid.should.be.equal(true)
-  })
-
-  it('should correctly reference the token contract', async function() {
-    const healthDRSAddress = await this.token.healthDRS()
-    const healthDRS = HealthDRS.at(healthDRSAddress)    
-    const tokenAddress = await healthDRS.token()
-    tokenAddress.should.be.equal(this.token.address)  
-  })
-
-  it('should be updateable by admin', async function() {
-    let firstDRSAddress = await this.token.healthDRS()
-    await this.token.updateHealthDRS(accounts[1],'');
-    let secondDRSAddress = await this.token.healthDRS()    
-
-    secondDRSAddress.should.not.be.equal(firstDRSAddress)  
-    secondDRSAddress.should.be.equal(accounts[1])  
+    secondTokenAddress.should.not.be.equal(firstTokenAddress)  
+    secondTokenAddress.should.be.equal(accounts[1])  
   })
 
   it('should only be updateable by admin', async function() {
-    let firstDRSAddress = await this.token.healthDRS()
-    await this.token.updateHealthDRS(accounts[1],'',{from: accounts[1]});
-    let secondDRSAddress = await this.token.healthDRS()    
+    let firstTokenAddress = await this.drs.token()
+    await this.drs.setHealthCashToken(accounts[1],{from: accounts[1]})
+    let secondTokenAddress = await this.drs.token()
 
-    secondDRSAddress.should.be.equal(firstDRSAddress)  
-    secondDRSAddress.should.not.be.equal(accounts[1])  
+    secondTokenAddress.should.be.equal(firstTokenAddress)  
+    secondTokenAddress.should.not.be.equal(accounts[1])  
   })
+ 
 
 })
