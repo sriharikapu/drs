@@ -8,8 +8,8 @@ contract HealthDRS is Ownable {
     /**
     * Health Decentralized Record Service (DRS)
     * This contract enables registration and permissioning
-    * of gatekeeper services using keys that can be managed,
-    * shared, or sold using Health Cash (HLTH). 
+    * of gatekeeper services (urls) using keys that can be 
+    * managed, shared, traded, and sold using Health Cash (HLTH). 
     */
 
     BurnableToken public token;
@@ -17,40 +17,50 @@ contract HealthDRS is Ownable {
     uint16 public version = 1;     
     address public latestContract = address(this);         
 
-    //Gatekeeper service only have a url for now
-    struct Gatekeeper {
-        string url;         
-    }
-
-    //Ring establishes relationships between keys
     struct Ring {
+        uint url;
         uint8 distance;
-        Gatekeeper gatekeeper;
         bytes32[] keys;
     }
-    Ring[] rings;    
 
     struct Key {
-        bytes32 id;         
         address owner;        
         uint primary; 
         uint secondary;        
     }
 
+    struct SalesOffer {
+        address buyer;
+        uint price;
+    }
+
+    string[] urls; //Urls for gatekeeper services
+    Ring[] rings; 
     mapping(bytes32 => Key) keys;
     mapping(address => bytes32[]) accountKeys;     
+    mapping(bytes32 => SalesOffer) salesOffers;
+    mapping(bytes32 => bytes32) tradeOffers;    
+
+    /**
+    * EVENTS
+    */
+    event KeyCreated(bytes32 indexed _key);
+    event KeyTransfered(bytes32 indexed _key, address _old, address _new);
+    event KeySold(bytes32 _key, address indexed _seller, address indexed _buyer, uint _price);
+    event KeysTraded(bytes32 indexed _key1, bytes32 indexed _key2);
+    event KeyMoved(bytes32 indexed _key, bytes32 _from, bytes32 _to);
+    event AccessGranted(bytes32 indexed _key, uint _time, bytes32 _ident);
 
     /* 
         Create Keys
-            - Create a root key by registering a gatekeeper url
-            - Create a peer key 
-            - Create a child key
-            - Create a shared access key
     */
-    event NewKey(bytes32 indexed _key);
+    modifier ownsKey(bytes32 key) {
+      require(keys[key].owner == msg.sender);
+      _;
+    }
 
     //Create a root key by registering a gatekeeper url    
-    function registerGatekeeper(string _url) 
+    function registerGatekeeper(string url) 
         isAuthorizedToSpend(registrationPrice)    
         returns (bytes32 id)
     {
@@ -59,18 +69,17 @@ contract HealthDRS is Ownable {
        token.burn(registrationPrice); 
 
        //create a unique id 
-       id = keccak256(_url,now,msg.sender);
+       id = keccak256(url,now,msg.sender);
 
        //make sure to not recreate existing keys
-       require(keys[id].primary == 0);
+       require(keys[id].secondary == 0);
 
-       keys[id].id = id;       
        keys[id].owner = msg.sender;       
 
        //primary ring
        Ring memory primary;
        primary.distance = 0;
-       primary.gatekeeper.url = _url;
+       primary.url = urls.push(url) - 1;
        keys[id].primary = rings.push(primary) - 1;
        rings[keys[id].primary].keys.push(id);
 
@@ -82,25 +91,24 @@ contract HealthDRS is Ownable {
 
        accountKeys[msg.sender].push(id);
        
-       NewKey(id);
+       KeyCreated(id);
     }
 
     //Create a peer key from a key you own
-    function createPeerKey(bytes32 _id) returns (bytes32 id) {
-
-       require(msg.sender == keys[_id].owner);
-
+    function createPeerKey(bytes32 _key) 
+        ownsKey(_key)
+        returns (bytes32 id)
+    {
        //create a unique id 
-       id = keccak256(_id,now,msg.sender);
+       id = keccak256(_key,now,msg.sender);
 
        //make sure to not recreate existing keys
-       require(keys[id].primary == 0);
+       require(keys[id].secondary == 0);
 
-       keys[id].id = id;       
        keys[id].owner = msg.sender; 
 
        //primary is the same
-       keys[id].primary = keys[_id].primary;
+       keys[id].primary = keys[_key].primary;
        rings[keys[id].primary].keys.push(id);
 
        //new secondary ring
@@ -110,26 +118,24 @@ contract HealthDRS is Ownable {
        rings[keys[id].secondary].keys.push(id);
        accountKeys[msg.sender].push(id);
 
-       NewKey(id);
+       KeyCreated(id);
     }
 
     //Create a child key from a key you own 
-    function createChildKey(bytes32 _id) returns (bytes32 id) {
-
-       require(msg.sender == keys[_id].owner);
-
+    function createChildKey(bytes32 _key) 
+        ownsKey(_key)
+        returns (bytes32 id)
+    {
        //create a unique id 
-       id = keccak256(_id,now,msg.sender);
+       id = keccak256(_key,now,msg.sender);
 
        //make sure to not recreate existing keys
-       require(keys[id].primary == 0);
+       require(keys[id].secondary == 0);
 
-       keys[id].id = id;       
        keys[id].owner = msg.sender; 
 
-
        //primary is parent's secondary
-       keys[id].primary = keys[_id].secondary;
+       keys[id].primary = keys[_key].secondary;
        rings[keys[id].primary].keys.push(id);
 
        //secondary ring
@@ -139,68 +145,167 @@ contract HealthDRS is Ownable {
        rings[keys[id].secondary].keys.push(id);
 
        accountKeys[msg.sender].push(id);
-       NewKey(id);
+       KeyCreated(id);
     }
 
-    // Create a clone key to be able to share access for a key you own
-    function createCloneKey(bytes32 _id) returns (bytes32 id) {
-
-       require(msg.sender == keys[_id].owner);
-
+    // Create a clone key, needed to share access for a key you own
+    function createCloneKey(bytes32 _key) 
+        ownsKey(_key)
+        returns (bytes32 id) 
+    {
        //create a unique id 
-       id = keccak256(_id,now,msg.sender);
+       id = keccak256(_key,now,msg.sender);
 
        //make sure to not recreate existing keys
-       require(keys[id].primary == 0);
+       require(keys[id].secondary == 0);
 
-       keys[id].id = id;       
        keys[id].owner = msg.sender; 
 
        //primary is the same
-       keys[id].primary = keys[_id].primary;
+       keys[id].primary = keys[_key].primary;
        rings[keys[id].primary].keys.push(id);   
 
        //secondary is the same
-       keys[id].secondary = keys[_id].secondary;
+       keys[id].secondary = keys[_key].secondary;
        rings[keys[id].secondary].keys.push(id);
 
        accountKeys[msg.sender].push(id);
 
-       NewKey(id);
+       KeyCreated(id);
+    }
+
+    /**
+    * Share Keys
+    */
+    function shareKey(bytes32 _key, address account) 
+        ownsKey(_key)
+        returns (bytes32 id)
+    {
+        id = createCloneKey(_key);
+        transferKey(id, account);
+    }
+
+    function transferKey(bytes32 _key, address _newOwner) 
+        ownsKey(_key)    
+        returns (bool)
+    {
+       KeyTransfered(_key, keys[_key].owner, _newOwner);
+
+       removeFromAccountKeys(keys[_key].owner, _key);
+       accountKeys[_newOwner].push(_key);
+       keys[_key].owner = _newOwner; 
+
+       return true;
     }
 
     /** 
     * Sell Keys
     */
+    function createSalesOffer(bytes32 _key, address _buyer, uint _price)
+        ownsKey(_key)
+    {
+        salesOffers[_key].buyer = _buyer;
+        salesOffers[_key].price = _price;
+    }
 
-    //Offers contain a key id, an address, and a purchase price (HLTH)
-    //They can only be created by a key owner
-    //To sell you create an offer, and the buyer has to purchase based on the offer 
-    //We need a way to retrieve offers made to an address
-    //We need to update the owners and the accountKeys mapping
+    function purchaseKey(bytes32 _key, uint _value) 
+        isAuthorizedToSpend(_value)  
+    {
+       require(salesOffers[_key].buyer == msg.sender);
+       require(salesOffers[_key].price == _value);       
+
+       //price is in HLTH tokens
+       token.transferFrom(msg.sender, keys[_key].owner, _value);
+       
+       KeySold(_key, keys[_key].owner, msg.sender, _value);
+
+       removeFromAccountKeys(keys[_key].owner, _key);
+       accountKeys[msg.sender].push(_key);
+       keys[_key].owner = msg.sender;
+       
+       //TODO remove any sales or trade offers on key
+       salesOffers[_key].buyer = 0;
+       salesOffers[_key].price = 0;
+    }
 
  
     /**
     * Trade Keys
     */
+    function tradeKey(bytes32 _have, bytes32 _want)
+       ownsKey(_have)
+    {
+       if (tradeOffers[_want] == _have) {
+           
+           KeysTraded(_want, _have);
+           tradeOffers[_want] = ""; //remove the tradeOffer
 
-    // Trade offer list will be a mapping of a keys you want
-    // with a give you are willing to trade 
-    // Where only the owner can add trade offers 
-    // When a trade offer is made - we'll look to see if 
-    // a matching offer exists and make the trade if so. 
-    // This needs to update accountKeys
+           //complete the trade
+           removeFromAccountKeys(keys[_have].owner, _have);
+           removeFromAccountKeys(keys[_want].owner, _want);           
+           accountKeys[keys[_want].owner].push(_have);           
+           accountKeys[msg.sender].push(_want);                      
 
+           keys[_have].owner = keys[_want].owner;
+           keys[_want].owner = msg.sender;
+
+        } else {
+            //create a trade offer
+            tradeOffers[_have] = _want;
+        }
+    }
 
     /**
     * Manage Keys
     */
+    function canManage(bytes32 _ancestor, bytes32 _key)
+        constant
+        ownsKey(_ancestor)
+        returns (bool)
+    {
+        if (keys[_ancestor].secondary == keys[_key].primary) {
+             return true;
+        } else if (rings[keys[_ancestor].secondary].distance > rings[keys[_key].primary].distance) {
+            return false;  
+        }
+
+        bytes32 id; 
+        for (uint i = 0; i < rings[keys[_key].primary].keys.length; i++) {
+            id = rings[keys[_key].primary].keys[i];
+            if (rings[keys[id].primary].distance < rings[keys[_key].primary].distance) {
+                return canManage(_ancestor, id); 
+            }                
+        }
+
+        return false;
+    }   
+
+    //Move a key you can manage under another key you own
+    function moveKey(bytes32 ancestorKey, bytes32 keyToMove, bytes32 keyDestination) returns (bool) {
+        require(canManage(ancestorKey, keyToMove));
+        require(keys[keyDestination].owner == msg.sender);
+        KeyMoved(keyToMove, ancestorKey, keyDestination);
+
+        keys[keyToMove].primary = keys[keyDestination].secondary;
+    }
     
-    //need to be able to remove keys
-    //first only allow parent keys to remove keys 
-    //peer keys can not remove each other
-    //if a key is removed we have to delete it from the accountsKey 
-    //mapping, the key mapping, and from any related rings
+    function removeFromAccountKeys(address account, bytes32 key) internal {
+
+       bool foundKey = false;
+
+       for (uint i = 0; i < accountKeys[account].length; i++) { 
+           if (accountKeys[account][i] == key) {
+               foundKey = true;
+               break;
+           }
+       }
+       if (foundKey) {
+           if (i != accountKeys[account].length - 1) {
+               accountKeys[account][i] = accountKeys[account][accountKeys[account].length - 1];
+           }
+           accountKeys[account].length--;   
+       }
+    }
 
 
     /*
@@ -217,39 +322,36 @@ contract HealthDRS is Ownable {
         return token.allowance(msg.sender, address(this)); 
     }
 
-
-
     /**
     * 
     *  Utility functions for interacting with DRS
     * 
     */
-    function getKeyOwner(bytes32 id) constant returns (address) {
-        return keys[id].owner;
+    function getKeyOwner(bytes32 _key) constant returns (address) {
+        return keys[_key].owner;
     }
 
     //Using any key retreive the gatekeeper's url
-    function getURL(bytes32 id)
+    function getURL(bytes32 _key)
     constant returns (string)
     {
-        if (rings[keys[id].primary].distance == 0) {
-            return rings[keys[id].primary].gatekeeper.url;
+        if (rings[keys[_key].primary].distance == 0) {
+            return urls[rings[keys[_key].primary].url];
         } else {
-            bytes32 keyId;
-            for (uint i = 0; i < rings[keys[id].primary].keys.length; i++) {
-                keyId = rings[keys[id].primary].keys[i];
-                if (rings[keys[keyId].primary].distance < rings[keys[id].primary].distance) {
-                    return getURL(keyId);
+            bytes32 id;
+            for (uint i = 0; i < rings[keys[_key].primary].keys.length; i++) {
+                id = rings[keys[_key].primary].keys[i];
+                if (rings[keys[id].primary].distance < rings[keys[_key].primary].distance) {
+                    return getURL(id);
                 }
             }
         }
     }
 
     //Update a gatekeeper url using key
-    function updateGatekeeperUrl(bytes32 id, string url) {
-       require(msg.sender == keys[id].owner); //owner only
-       require(rings[keys[id].primary].distance == 0); //root key only
-       rings[keys[id].primary].gatekeeper.url = url;
+    function updateGatekeeperUrl(bytes32 _key, string url) ownsKey(_key) {
+       require(rings[keys[_key].primary].distance == 0); //root key only
+       urls[rings[keys[_key].primary].url] = url;
     }
 
 

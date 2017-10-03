@@ -47,7 +47,7 @@ contract('HealthDRS', function(accounts) {
     let tx1 = await this.drs.registerGatekeeper(this.url)
     let key1 = tx1.logs[0].args._key
     let tx2 = await this.drs.createChildKey(key1) 
-    tx2.logs[0].event.should.equal('NewKey')
+    tx2.logs[0].event.should.equal('KeyCreated')
     let key2 = tx2.logs[0].args._key    
     
     let owner = await this.drs.getKeyOwner(key2)
@@ -70,7 +70,7 @@ contract('HealthDRS', function(accounts) {
     let tx1 = await this.drs.registerGatekeeper(this.url)
     let key1 = tx1.logs[0].args._key
     let tx2 = await this.drs.createPeerKey(key1) 
-    tx2.logs[0].event.should.equal('NewKey')
+    tx2.logs[0].event.should.equal('KeyCreated')
     let key2 = tx2.logs[0].args._key    
     
     let owner = await this.drs.getKeyOwner(key2)
