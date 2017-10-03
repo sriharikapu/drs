@@ -34,12 +34,12 @@ contract HealthDRS is Ownable {
         uint price;
     }
 
-    string[] urls; //Urls for gatekeeper services
+    string[] urls; //gatekeeper services
     Ring[] rings; 
     mapping(bytes32 => Key) keys;
-    mapping(address => bytes32[]) accountKeys;     
-    mapping(bytes32 => SalesOffer) salesOffers;
-    mapping(bytes32 => bytes32) tradeOffers;    
+    mapping(address => bytes32[]) public accountKeys;     
+    mapping(bytes32 => SalesOffer) public salesOffers;
+    mapping(bytes32 => bytes32) public tradeOffers;    
 
     /**
     * EVENTS
@@ -59,8 +59,8 @@ contract HealthDRS is Ownable {
       _;
     }
 
-    //Create a root key by registering a gatekeeper url    
-    function registerGatekeeper(string url) 
+    //Create a root key by registering a url    
+    function createKey(string url) 
         isAuthorizedToSpend(registrationPrice)    
         returns (bytes32 id)
     {
@@ -204,8 +204,17 @@ contract HealthDRS is Ownable {
     function createSalesOffer(bytes32 _key, address _buyer, uint _price)
         ownsKey(_key)
     {
+        //cancell trade offer & create sales offer
+        tradeOffers[_key] = bytes32(0);
         salesOffers[_key].buyer = _buyer;
         salesOffers[_key].price = _price;
+    }
+
+    function cancelSalesOffer(bytes32 _key)
+        ownsKey(_key)
+    {
+        salesOffers[_key].buyer = address(0);
+        salesOffers[_key].price = 0;
     }
 
     function purchaseKey(bytes32 _key, uint _value) 
@@ -223,7 +232,7 @@ contract HealthDRS is Ownable {
        accountKeys[msg.sender].push(_key);
        keys[_key].owner = msg.sender;
        
-       //TODO remove any sales or trade offers on key
+       //key is no longer for sale
        salesOffers[_key].buyer = 0;
        salesOffers[_key].price = 0;
     }
@@ -250,7 +259,8 @@ contract HealthDRS is Ownable {
            keys[_want].owner = msg.sender;
 
         } else {
-            //create a trade offer
+            //create a trade offer & cancel sales offer
+            cancelSalesOffer(_have);
             tradeOffers[_have] = _want;
         }
     }
@@ -282,13 +292,28 @@ contract HealthDRS is Ownable {
 
     //Move a key you can manage under another key you own
     function moveKey(bytes32 ancestorKey, bytes32 keyToMove, bytes32 keyDestination) returns (bool) {
+
         require(canManage(ancestorKey, keyToMove));
         require(keys[keyDestination].owner == msg.sender);
-        KeyMoved(keyToMove, ancestorKey, keyDestination);
+        require(isSharedKey(keyToMove) == false); //moving shared keys may invalidate the data structure
 
+        KeyMoved(keyToMove, ancestorKey, keyDestination);
         keys[keyToMove].primary = keys[keyDestination].secondary;
     }
-    
+
+    function isSharedKey(bytes32 key) constant returns (bool) {
+       
+       for (uint i = 0; i < rings[keys[key].primary].keys.length; i++) { 
+           if (rings[keys[key].primary].keys[i] != key) {
+               if (keys[rings[keys[key].primary].keys[i]].secondary == keys[key].secondary) {
+                   return true;
+               }
+           }
+       }
+
+       return false;
+    }
+
     function removeFromAccountKeys(address account, bytes32 key) internal {
 
        bool foundKey = false;
@@ -306,6 +331,15 @@ contract HealthDRS is Ownable {
            accountKeys[account].length--;   
        }
     }
+
+    function getAccountKeysLength(address account) external constant returns(uint) {
+        return accountKeys[account].length;
+    }
+
+    /**
+    * TODO
+    * create logging functions to store access requests and data access
+    */
 
 
     /*

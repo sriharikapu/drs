@@ -39,13 +39,12 @@ contract('HealthDRS :: Token', function(accounts) {
     allowance.should.be.bignumber.equal(100)  
   }) 
 
-
-  it('should return the correct total after registering a gatekeeper', async function() {
+  it('should return the correct total after creating a key', async function() {
     await this.token.approve(this.drs.address, 1);
-    let key = await this.drs.registerGatekeeper('url-here')
+    let key = await this.drs.createKey('url-here')
 
     let balance = await this.token.balanceOf(accounts[0])
-    balance.should.be.bignumber.equal(99,'Should have spent 1 to register a gatekeeper.')
+    balance.should.be.bignumber.equal(99,'Should have spent 1 to create a key.')
   }) 
 
 })
