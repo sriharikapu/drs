@@ -1,7 +1,7 @@
 
-## Health Cash :: ERC20 Token
+## Health Cash :: DRS
 
-This is an ERC 20 compliant token contract.
+This solidity smart contract provides the functionality needed to manage the keys used in a decentralized record system. 
 
 ## Getting Started
 
