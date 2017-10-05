@@ -1,7 +1,8 @@
-pragma solidity ^0.4.14;
+pragma solidity 0.4.15;
 
 import 'zeppelin-solidity/contracts/ownership/Ownable.sol';
 import './BurnableToken.sol';
+
 
 contract HealthDRS is Ownable {
 
@@ -13,7 +14,6 @@ contract HealthDRS is Ownable {
     */
 
     BurnableToken public token;
-    uint public registrationPrice = 1; 
     uint16 public version = 1;     
     address public latestContract = address(this);         
 
@@ -26,7 +26,8 @@ contract HealthDRS is Ownable {
     struct Key {
         address owner;        
         uint primary; 
-        uint secondary;        
+        uint secondary;
+        mapping(bytes32 => bytes32) data;
     }
 
     struct SalesOffer {
@@ -34,7 +35,7 @@ contract HealthDRS is Ownable {
         uint price;
     }
 
-    string[] urls; //gatekeeper services
+    string[] urls;
     Ring[] rings; 
     mapping(bytes32 => Key) keys;
     mapping(address => bytes32[]) public accountKeys;     
@@ -49,7 +50,9 @@ contract HealthDRS is Ownable {
     event KeySold(bytes32 _key, address indexed _seller, address indexed _buyer, uint _price);
     event KeysTraded(bytes32 indexed _key1, bytes32 indexed _key2);
     event KeyMoved(bytes32 indexed _key, bytes32 _from, bytes32 _to);
-    event AccessGranted(bytes32 indexed _key, uint _time, bytes32 _ident);
+    event Access(address indexed _owner, bytes32 indexed _from, bytes32 indexed _to, uint _time, string _data);
+    event Message(address indexed _owner, bytes32 indexed _from, bytes32 indexed _to, uint _time, string _category, string _data);    
+    event Log(address indexed _owner, bytes32 indexed _from, uint _time, string _data);        
 
     /* 
         Create Keys
@@ -58,16 +61,14 @@ contract HealthDRS is Ownable {
       require(keys[key].owner == msg.sender);
       _;
     }
+ 
+    modifier validKey(bytes32 key) {
+      require(keys[key].secondary > 0);
+      _;
+    }
 
     //Create a root key by registering a url    
-    function createKey(string url) 
-        isAuthorizedToSpend(registrationPrice)    
-        returns (bytes32 id)
-    {
-       //HLTH spent to register are burned
-       token.transferFrom(msg.sender, address(this), registrationPrice);
-       token.burn(registrationPrice); 
-
+    function createKey(string url) returns (bytes32 id) {
        //create a unique id 
        id = keccak256(url,now,msg.sender);
 
@@ -95,12 +96,12 @@ contract HealthDRS is Ownable {
     }
 
     //Create a peer key from a key you own
-    function createPeerKey(bytes32 _key) 
-        ownsKey(_key)
+    function createPeerKey(bytes32 key) 
+        ownsKey(key)
         returns (bytes32 id)
     {
        //create a unique id 
-       id = keccak256(_key,now,msg.sender);
+       id = keccak256(key,now,msg.sender);
 
        //make sure to not recreate existing keys
        require(keys[id].secondary == 0);
@@ -108,7 +109,7 @@ contract HealthDRS is Ownable {
        keys[id].owner = msg.sender; 
 
        //primary is the same
-       keys[id].primary = keys[_key].primary;
+       keys[id].primary = keys[key].primary;
        rings[keys[id].primary].keys.push(id);
 
        //new secondary ring
@@ -122,12 +123,12 @@ contract HealthDRS is Ownable {
     }
 
     //Create a child key from a key you own 
-    function createChildKey(bytes32 _key) 
-        ownsKey(_key)
+    function createChildKey(bytes32 key) 
+        ownsKey(key)
         returns (bytes32 id)
     {
        //create a unique id 
-       id = keccak256(_key,now,msg.sender);
+       id = keccak256(key,now,msg.sender);
 
        //make sure to not recreate existing keys
        require(keys[id].secondary == 0);
@@ -135,7 +136,7 @@ contract HealthDRS is Ownable {
        keys[id].owner = msg.sender; 
 
        //primary is parent's secondary
-       keys[id].primary = keys[_key].secondary;
+       keys[id].primary = keys[key].secondary;
        rings[keys[id].primary].keys.push(id);
 
        //secondary ring
@@ -149,12 +150,12 @@ contract HealthDRS is Ownable {
     }
 
     // Create a clone key, needed to share access for a key you own
-    function createCloneKey(bytes32 _key) 
-        ownsKey(_key)
+    function createCloneKey(bytes32 key) 
+        ownsKey(key)
         returns (bytes32 id) 
     {
        //create a unique id 
-       id = keccak256(_key,now,msg.sender);
+       id = keccak256(key,now,msg.sender);
 
        //make sure to not recreate existing keys
        require(keys[id].secondary == 0);
@@ -162,11 +163,11 @@ contract HealthDRS is Ownable {
        keys[id].owner = msg.sender; 
 
        //primary is the same
-       keys[id].primary = keys[_key].primary;
+       keys[id].primary = keys[key].primary;
        rings[keys[id].primary].keys.push(id);   
 
        //secondary is the same
-       keys[id].secondary = keys[_key].secondary;
+       keys[id].secondary = keys[key].secondary;
        rings[keys[id].secondary].keys.push(id);
 
        accountKeys[msg.sender].push(id);
@@ -177,23 +178,23 @@ contract HealthDRS is Ownable {
     /**
     * Share Keys
     */
-    function shareKey(bytes32 _key, address account) 
-        ownsKey(_key)
+    function shareKey(bytes32 key, address account) 
+        ownsKey(key)
         returns (bytes32 id)
     {
-        id = createCloneKey(_key);
+        id = createCloneKey(key);
         transferKey(id, account);
     }
 
-    function transferKey(bytes32 _key, address _newOwner) 
-        ownsKey(_key)    
+    function transferKey(bytes32 key, address newOwner) 
+        ownsKey(key)    
         returns (bool)
     {
-       KeyTransfered(_key, keys[_key].owner, _newOwner);
+       KeyTransfered(key, keys[key].owner, newOwner);
 
-       removeFromAccountKeys(keys[_key].owner, _key);
-       accountKeys[_newOwner].push(_key);
-       keys[_key].owner = _newOwner; 
+       removeFromAccountKeys(keys[key].owner, key);
+       accountKeys[newOwner].push(key);
+       keys[key].owner = newOwner; 
 
        return true;
     }
@@ -201,89 +202,91 @@ contract HealthDRS is Ownable {
     /** 
     * Sell Keys
     */
-    function createSalesOffer(bytes32 _key, address _buyer, uint _price)
-        ownsKey(_key)
+    function createSalesOffer(bytes32 key, address buyer, uint price)
+        ownsKey(key)
     {
         //cancell trade offer & create sales offer
-        tradeOffers[_key] = bytes32(0);
-        salesOffers[_key].buyer = _buyer;
-        salesOffers[_key].price = _price;
+        tradeOffers[key] = bytes32(0);
+        salesOffers[key].buyer = buyer;
+        salesOffers[key].price = price;
     }
 
-    function cancelSalesOffer(bytes32 _key)
-        ownsKey(_key)
+    function cancelSalesOffer(bytes32 key)
+        ownsKey(key)
     {
-        salesOffers[_key].buyer = address(0);
-        salesOffers[_key].price = 0;
+        salesOffers[key].buyer = address(0);
+        salesOffers[key].price = 0;
     }
 
-    function purchaseKey(bytes32 _key, uint _value) 
-        isAuthorizedToSpend(_value)  
+    function purchaseKey(bytes32 key, uint value) 
+        isAuthorizedToSpend(value)  
     {
-       require(salesOffers[_key].buyer == msg.sender);
-       require(salesOffers[_key].price == _value);       
+       require(salesOffers[key].buyer == msg.sender);
+       require(salesOffers[key].price == value);       
 
        //price is in HLTH tokens
-       token.transferFrom(msg.sender, keys[_key].owner, _value);
+       token.transferFrom(msg.sender, keys[key].owner, value);
        
-       KeySold(_key, keys[_key].owner, msg.sender, _value);
+       KeySold(key, keys[key].owner, msg.sender, value);
 
-       removeFromAccountKeys(keys[_key].owner, _key);
-       accountKeys[msg.sender].push(_key);
-       keys[_key].owner = msg.sender;
+       removeFromAccountKeys(keys[key].owner, key);
+       accountKeys[msg.sender].push(key);
+       keys[key].owner = msg.sender;
        
        //key is no longer for sale
-       salesOffers[_key].buyer = 0;
-       salesOffers[_key].price = 0;
+       salesOffers[key].buyer = 0;
+       salesOffers[key].price = 0;
     }
 
  
     /**
     * Trade Keys
     */
-    function tradeKey(bytes32 _have, bytes32 _want)
-       ownsKey(_have)
+    function tradeKey(bytes32 have, bytes32 want)
+       ownsKey(have)
     {
-       if (tradeOffers[_want] == _have) {
+       if (tradeOffers[want] == have) {
            
-           KeysTraded(_want, _have);
-           tradeOffers[_want] = ""; //remove the tradeOffer
+           KeysTraded(want, have);
+           tradeOffers[want] = ""; //remove the tradeOffer
 
            //complete the trade
-           removeFromAccountKeys(keys[_have].owner, _have);
-           removeFromAccountKeys(keys[_want].owner, _want);           
-           accountKeys[keys[_want].owner].push(_have);           
-           accountKeys[msg.sender].push(_want);                      
+           removeFromAccountKeys(keys[have].owner, have);
+           removeFromAccountKeys(keys[want].owner, want);           
+           accountKeys[keys[want].owner].push(have);           
+           accountKeys[msg.sender].push(want);                      
 
-           keys[_have].owner = keys[_want].owner;
-           keys[_want].owner = msg.sender;
+           keys[have].owner = keys[want].owner;
+           keys[want].owner = msg.sender;
 
         } else {
             //create a trade offer & cancel sales offer
-            cancelSalesOffer(_have);
-            tradeOffers[_have] = _want;
+            cancelSalesOffer(have);
+            tradeOffers[have] = want;
         }
     }
 
     /**
     * Manage Keys
     */
-    function canManage(bytes32 _ancestor, bytes32 _key)
+    function isAncestor(bytes32 ancestor, bytes32 key) 
         constant
-        ownsKey(_ancestor)
-        returns (bool)
+        validKey(ancestor)
+        validKey(key)        
+        returns (bool) 
     {
-        if (keys[_ancestor].secondary == keys[_key].primary) {
+        
+        if (keys[ancestor].secondary == keys[key].primary) {
              return true;
-        } else if (rings[keys[_ancestor].secondary].distance > rings[keys[_key].primary].distance) {
+        } else if (rings[keys[ancestor].secondary].distance > rings[keys[key].primary].distance) {
             return false;  
         }
 
         bytes32 id; 
-        for (uint i = 0; i < rings[keys[_key].primary].keys.length; i++) {
-            id = rings[keys[_key].primary].keys[i];
-            if (rings[keys[id].primary].distance < rings[keys[_key].primary].distance) {
-                return canManage(_ancestor, id); 
+        for (uint i = 0; i < rings[keys[key].primary].keys.length; i++) {
+            id = rings[keys[key].primary].keys[i];
+            if (rings[keys[id].primary].distance < rings[keys[key].primary].distance) {
+                return isAncestor(ancestor, id); 
             }                
         }
 
@@ -291,30 +294,49 @@ contract HealthDRS is Ownable {
     }   
 
     //Move a key you can manage under another key you own
-    function moveKey(bytes32 ancestorKey, bytes32 keyToMove, bytes32 keyDestination) returns (bool) {
+    function moveKey(bytes32 keyAncestor, bytes32 keyToMove, bytes32 keyDestination) 
+        ownsKey(keyAncestor)    
+        ownsKey(keyDestination)
+        returns (bool) 
+    {
+        require(isAncestor(keyAncestor, keyToMove));
 
-        require(canManage(ancestorKey, keyToMove));
-        require(keys[keyDestination].owner == msg.sender);
-        require(isSharedKey(keyToMove) == false); //moving shared keys may invalidate the data structure
-
-        KeyMoved(keyToMove, ancestorKey, keyDestination);
-        keys[keyToMove].primary = keys[keyDestination].secondary;
+        //move key and all shared keys
+        bytes32[] memory primaryKeys = rings[keys[keyToMove].primary].keys;
+        uint secondary = keys[keyToMove].secondary;
+        for (uint i = 0; i < primaryKeys.length; i++) { 
+            if (keys[primaryKeys[i]].secondary == secondary) {
+                moveKeyUnder(primaryKeys[i], keyDestination);
+                KeyMoved(primaryKeys[i], keyAncestor, keyDestination);
+            }
+        }
     }
 
-    function isSharedKey(bytes32 key) constant returns (bool) {
+    function moveKeyUnder(bytes32 key, bytes32 destination) private {
+        removeKeyFromItsPrimaryRing(key);
+        keys[key].primary = keys[destination].secondary;
+        rings[keys[key].primary].keys.push(key);  
+    }
+
+    function removeKeyFromItsPrimaryRing(bytes32 key) private {
        
+       bool foundKey = false;
+
        for (uint i = 0; i < rings[keys[key].primary].keys.length; i++) { 
-           if (rings[keys[key].primary].keys[i] != key) {
-               if (keys[rings[keys[key].primary].keys[i]].secondary == keys[key].secondary) {
-                   return true;
-               }
+           if (rings[keys[key].primary].keys[i] == key) {
+               foundKey = true;
+               break;
            }
        }
-
-       return false;
+       if (foundKey) {
+           if (i != rings[keys[key].primary].keys.length - 1) {
+               rings[keys[key].primary].keys[i] = rings[keys[key].primary].keys[rings[keys[key].primary].keys.length - 1];  
+           }
+           rings[keys[key].primary].keys.length--;   
+       }
     }
 
-    function removeFromAccountKeys(address account, bytes32 key) internal {
+    function removeFromAccountKeys(address account, bytes32 key) private {
 
        bool foundKey = false;
 
@@ -336,10 +358,104 @@ contract HealthDRS is Ownable {
         return accountKeys[account].length;
     }
 
+    function getPrimaryKeys(bytes32 key) 
+        external 
+        constant
+        ownsKey(key)
+        returns(bytes32[])
+    {
+        return rings[keys[key].primary].keys;
+    }
+
+    function getSecondaryKeys(bytes32 key) 
+        external 
+        constant
+        ownsKey(key)
+        returns(bytes32[])
+    {
+        return rings[keys[key].secondary].keys;
+    }
+
+    function getAncestorCount(bytes32 descendant)
+        public
+        constant
+        validKey(descendant)
+        returns(uint) 
+    {
+       return rings[keys[descendant].primary].distance;
+    }
+
+    function getAncestor(bytes32 key, uint distance)
+        public 
+        constant
+        validKey(key)        
+        returns (bytes32)
+    {
+        require(distance <= getAncestorCount(key));
+
+        if (rings[keys[key].primary].distance == distance) {
+            return key;
+        } else {
+            bytes32 id;
+            for (uint i = 0; i < rings[keys[key].primary].keys.length; i++) {
+                id = rings[keys[key].primary].keys[i];
+                if (rings[keys[id].primary].distance < rings[keys[key].primary].distance) {
+                    return getAncestor(id, distance);
+                }
+            }
+        }
+    }
+
     /**
-    * TODO
-    * create logging functions to store access requests and data access
+    * This will allow the storage of key metadata
     */
+    function getKeyData(bytes32 ancestor, bytes32 child, bytes32 dataKey)
+        external
+        constant
+        ownsKey(ancestor)        
+        returns (bytes32)
+    {
+        require(isAncestor(ancestor, child));
+        return keys[child].data[dataKey];
+    }
+
+    function setKeyData(bytes32 ancestor, bytes32 child, bytes32 dataKey, bytes32 dataValue)
+        external
+        ownsKey(ancestor)        
+    {
+        require(isAncestor(ancestor, child));
+        keys[child].data[dataKey] = dataValue;
+    }
+
+    /**
+    * logging and messaging functions for creating an auditable record of activity
+    */
+
+    function logAccess(bytes32 from, bytes32 to, string data)
+        public
+        ownsKey(from)
+        validKey(to)        
+    {
+        require(isAncestor(from, to));
+        Access(msg.sender, from, to, now, data);
+    }
+
+    function message(bytes32 from, bytes32 to, string category, string data)
+        public
+        ownsKey(from)
+        validKey(to)
+    {
+        Message(msg.sender, from, to, now, category, data);
+    }
+
+    function log(bytes32 from, string data)
+        public
+        ownsKey(from)            
+    {
+        Log(msg.sender, from, now, data);
+    }
+
+
 
 
     /*
@@ -348,8 +464,8 @@ contract HealthDRS is Ownable {
     * we need a simple way to check if we are
     * authorize to spend HLTH for the user. 
     */
-    modifier isAuthorizedToSpend(uint _value) {
-        assert(authorizedToSpend() >= _value); 
+    modifier isAuthorizedToSpend(uint value) {
+        assert(authorizedToSpend() >= value); 
         _;
     }
     function authorizedToSpend() constant returns (uint) {
@@ -361,31 +477,31 @@ contract HealthDRS is Ownable {
     *  Utility functions for interacting with DRS
     * 
     */
-    function getKeyOwner(bytes32 _key) constant returns (address) {
-        return keys[_key].owner;
+    function getKeyOwner(bytes32 key) constant returns (address) {
+        return keys[key].owner;
     }
 
     //Using any key retreive the gatekeeper's url
-    function getURL(bytes32 _key)
+    function getURL(bytes32 key)
     constant returns (string)
     {
-        if (rings[keys[_key].primary].distance == 0) {
-            return urls[rings[keys[_key].primary].url];
+        if (rings[keys[key].primary].distance == 0) {
+            return urls[rings[keys[key].primary].url];
         } else {
             bytes32 id;
-            for (uint i = 0; i < rings[keys[_key].primary].keys.length; i++) {
-                id = rings[keys[_key].primary].keys[i];
-                if (rings[keys[id].primary].distance < rings[keys[_key].primary].distance) {
+            for (uint i = 0; i < rings[keys[key].primary].keys.length; i++) {
+                id = rings[keys[key].primary].keys[i];
+                if (rings[keys[id].primary].distance < rings[keys[key].primary].distance) {
                     return getURL(id);
                 }
             }
         }
     }
 
-    //Update a gatekeeper url using key
-    function updateGatekeeperUrl(bytes32 _key, string url) ownsKey(_key) {
-       require(rings[keys[_key].primary].distance == 0); //root key only
-       urls[rings[keys[_key].primary].url] = url;
+    //Update a url using a root key you own
+    function updateURL(bytes32 key, string url) ownsKey(key) {
+       require(rings[keys[key].primary].distance == 0); //root key only
+       urls[rings[keys[key].primary].url] = url;
     }
 
 
@@ -399,17 +515,17 @@ contract HealthDRS is Ownable {
     {
         _token.transfer(owner, amount);
     }
-
-    function setRegistrationPrice(uint _price) 
-    onlyOwner 
-    {
-        registrationPrice = _price;
-    }
-    
+   
     function setHealthCashToken(BurnableToken _token) 
     onlyOwner 
     {
         token = _token;
+    }
+
+    function setLatestContract(address _contract) 
+    onlyOwner 
+    {
+        latestContract = _contract;
     }
 
 }

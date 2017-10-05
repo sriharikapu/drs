@@ -78,7 +78,6 @@ contract('HealthDRS :: Sell', function(accounts) {
 
    it('should be able to purchase an offered key', async function() {
     
-        await this.token.approve(this.drs.address, 1)    
         let tx1 = await this.drs.createKey(this.url)
         let key1 = tx1.logs[0].args._key
         await this.drs.createSalesOffer(key1, accounts[1], 5)
@@ -92,7 +91,7 @@ contract('HealthDRS :: Sell', function(accounts) {
         owner.should.equal(accounts[1])  
 
         let balance = await this.token.balanceOf(accounts[0])
-        balance.should.be.bignumber.equal(99,'Should have gotten 5 tokens back')
+        balance.should.be.bignumber.equal(100,'Should have gotten 5 tokens back')
 
    })
 

@@ -83,14 +83,14 @@ contract('HealthDRS', function(accounts) {
     url.should.equal(this.url)    
   })
 
-  it('should update gatekeeper url when using a root key', async function() {
+  it('should update url when using a root key', async function() {
     let tx = await this.drs.createKey(this.url)
     let key = tx.logs[0].args._key
     
     let tx2 = await this.drs.createChildKey(key) 
     let key2 = tx2.logs[0].args._key  
 
-    await this.drs.updateGatekeeperUrl(key,'changedUrl')    
+    await this.drs.updateURL(key,'changedUrl')    
 
     let url = await this.drs.getURL(key2) 
     url.should.equal('changedUrl')    
@@ -108,7 +108,7 @@ contract('HealthDRS', function(accounts) {
 
     //changing the url with the cloned key should 
     //effect all the child keys of the original keys
-    await this.drs.updateGatekeeperUrl(key3,'changedUrl')
+    await this.drs.updateURL(key3,'changedUrl')
         
     let url = await this.drs.getURL(key2) 
     url.should.equal('changedUrl')        

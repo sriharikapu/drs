@@ -30,8 +30,8 @@ contract('HealthDRS :: Share', function(accounts) {
     let tx3 = await this.drs.shareKey(rootKey, accounts[1])
     let sharedKey = tx3.logs[0].args._key   
 
-    let isParent = await this.drs.canManage(sharedKey, childKey, {from: accounts[1]})
-    isParent.should.be.true
+    let isAncestor = await this.drs.isAncestor(sharedKey, childKey, {from: accounts[1]})
+    isAncestor.should.be.true
 
   })
 
