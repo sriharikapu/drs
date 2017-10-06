@@ -19,8 +19,6 @@ contract('HealthDRS :: Sell', function(accounts) {
   })
   
   it('key owner should be able to put a key up for sale', async function() {
-
-    await this.token.approve(this.drs.address, 1)    
     let tx1 = await this.drs.createKey(this.url)
     let key1 = tx1.logs[0].args._key
 
@@ -33,13 +31,9 @@ contract('HealthDRS :: Sell', function(accounts) {
 
   it('putting a key up for sale should negate an active trade offer', async function() {
     
-    await this.token.approve(this.drs.address, 1)    
     let tx1 = await this.drs.createKey(this.url)
     let key1 = tx1.logs[0].args._key
 
-    //give account 1 some tokens to spend for this test
-    this.token.transfer(accounts[1],1);
-    await this.token.approve(this.drs.address, 1, {from: accounts[1]})    
     let tx2 = await this.drs.createKey(this.url,{from: accounts[1]})
     let key2 = tx2.logs[0].args._key
 
@@ -52,7 +46,6 @@ contract('HealthDRS :: Sell', function(accounts) {
 
   it('non owner should not be able to list a key for sale', async function() {
     
-        await this.token.approve(this.drs.address, 1)    
         let tx1 = await this.drs.createKey(this.url)
         let key1 = tx1.logs[0].args._key
     
@@ -65,7 +58,6 @@ contract('HealthDRS :: Sell', function(accounts) {
 
    it('should not be able to purchase an unoffered key', async function() {
     
-        await this.token.approve(this.drs.address, 1)    
         let tx1 = await this.drs.createKey(this.url)
         let key1 = tx1.logs[0].args._key
     
@@ -97,7 +89,6 @@ contract('HealthDRS :: Sell', function(accounts) {
 
    it('a key owner should be able to cancel a sales offer', async function() {
     
-        await this.token.approve(this.drs.address, 1)    
         let tx1 = await this.drs.createKey(this.url)
         let key1 = tx1.logs[0].args._key
         await this.drs.createSalesOffer(key1, accounts[1], 5)
@@ -109,7 +100,6 @@ contract('HealthDRS :: Sell', function(accounts) {
 
    it('a key owner should be able to update the price on a sales offer', async function() {
     
-        await this.token.approve(this.drs.address, 1)    
         let tx1 = await this.drs.createKey(this.url)
         let key1 = tx1.logs[0].args._key
         await this.drs.createSalesOffer(key1, accounts[1], 5)

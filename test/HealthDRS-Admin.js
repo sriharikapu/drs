@@ -35,5 +35,22 @@ contract('HealthDRS :: Admin', function(accounts) {
     secondTokenAddress.should.not.be.equal(accounts[1])  
   })
  
+  it('latest contract should be updateable by admin', async function() {
+    let firstAddresss = await this.drs.latestContract()
+    await this.drs.setLatestContract(accounts[1])
+    let secondAddress = await this.drs.latestContract()
+
+    secondAddress.should.not.equal(firstAddresss)  
+    secondAddress.should.equal(accounts[1])  
+  })
+
+  it('latest contract should only be updateable by admin', async function() {
+    let firstAddresss = await this.drs.latestContract()
+    await this.drs.setLatestContract(accounts[1],{from: accounts[1]})
+    let secondAddress = await this.drs.latestContract()
+
+    secondAddress.should.equal(firstAddresss)  
+    secondAddress.should.not.equal(accounts[1])  
+  })
 
 })

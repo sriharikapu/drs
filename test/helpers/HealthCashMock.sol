@@ -1,8 +1,8 @@
 pragma solidity ^0.4.11;
 
-import '../../contracts/BurnableToken.sol';
+import 'zeppelin-solidity/contracts/token/StandardToken.sol';
 
-contract HealthCashMock is BurnableToken {
+contract HealthCashMock is StandardToken {
 
   string public name = "Health Cash";
   string public symbol = "HLTH";

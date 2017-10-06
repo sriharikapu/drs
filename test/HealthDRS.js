@@ -5,17 +5,13 @@ const should = require('chai')
   .use(require('chai-bignumber')(BigNumber))
   .should()
 
-var HealthCashMock = artifacts.require('./helpers/HealthCashMock.sol');
 var HealthDRS = artifacts.require("./HealthDRS.sol")
 import isAddress from './helpers/isAddress'
 
 contract('HealthDRS', function(accounts) {
 
   beforeEach(async function() {
-    this.token = await HealthCashMock.new()
     this.drs = await HealthDRS.new()
-    await this.drs.setHealthCashToken(this.token.address)
-    await this.token.approve(this.drs.address, 1)    
     this.url = 'https://blogs.scientificamerican.com/observations/consciousness-goes-deeper-than-you-think/'    
   })
   

@@ -5,27 +5,22 @@ const should = require('chai')
   .use(require('chai-bignumber')(BigNumber))
   .should()
 
-var HealthCashMock = artifacts.require('./helpers/HealthCashMock.sol');
 var HealthDRS = artifacts.require("./HealthDRS.sol")
 import isAddress from './helpers/isAddress'
 
 contract('HealthDRS :: Trade', function(accounts) {
 
   beforeEach(async function() {
-    this.token = await HealthCashMock.new()
     this.drs = await HealthDRS.new()
-    await this.drs.setHealthCashToken(this.token.address)
     this.url = 'https://blogs.scientificamerican.com/observations/consciousness-goes-deeper-than-you-think/'    
   })
   
   it('key owners should be able to trade keys', async function() {
-    await this.token.approve(this.drs.address, 1)    
+
     let tx1 = await this.drs.createKey(this.url)
     let key1 = tx1.logs[0].args._key
 
     //give account 1 some tokens to spend for this test
-    this.token.transfer(accounts[1],1);
-    await this.token.approve(this.drs.address, 1, {from: accounts[1]})    
     let tx2 = await this.drs.createKey(this.url,{from: accounts[1]})
     let key2 = tx2.logs[0].args._key
 
@@ -43,13 +38,9 @@ contract('HealthDRS :: Trade', function(accounts) {
   })
 
   it('non-owners should not be able to trade keys', async function() {
-    await this.token.approve(this.drs.address, 1)    
     let tx1 = await this.drs.createKey(this.url)
     let key1 = tx1.logs[0].args._key
 
-    //give account 1 some tokens to spend for this test
-    this.token.transfer(accounts[1],1);
-    await this.token.approve(this.drs.address, 1, {from: accounts[1]})    
     let tx2 = await this.drs.createKey(this.url,{from: accounts[1]})
     let key2 = tx2.logs[0].args._key
 
@@ -68,13 +59,9 @@ contract('HealthDRS :: Trade', function(accounts) {
   })
 
   it('should update account keys when trading', async function() {
-    await this.token.approve(this.drs.address, 1)    
     let tx0 = await this.drs.createKey(this.url)
     let key0 = tx0.logs[0].args._key
 
-    //give account 1 some tokens to spend for this test
-    this.token.transfer(accounts[1],1);
-    await this.token.approve(this.drs.address, 1, {from: accounts[1]})    
     let tx1 = await this.drs.createKey(this.url,{from: accounts[1]})
     let key1 = tx1.logs[0].args._key
 
@@ -89,7 +76,6 @@ contract('HealthDRS :: Trade', function(accounts) {
   })
   
   it('creating a trade offer should negate an active sales offer', async function() {
-    await this.token.approve(this.drs.address, 1)    
     let tx0 = await this.drs.createKey(this.url)
     let key0 = tx0.logs[0].args._key
 
