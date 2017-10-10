@@ -68,6 +68,7 @@ contract('HealthDRS :: Manage', function(accounts) {
     isAncestor.should.equal(false)
   })
 
+  
   it('An owned ancestor key should be able to move a descendant', async function() {
     let tx = await this.drs.createKey(this.url)
     let rootKey1 = tx.logs[0].args._key
@@ -86,29 +87,6 @@ contract('HealthDRS :: Manage', function(accounts) {
     isAncestor.should.equal(true)
   })
 
-  it('should also move shared keys', async function() {
-    let tx = await this.drs.createKey(this.url)
-    let rootKey1 = tx.logs[0].args._key
-
-    tx = await this.drs.createKey(this.url)
-    let rootKey2 = tx.logs[0].args._key
-
-    tx = await this.drs.createChildKey(rootKey1) 
-    let childKey = tx.logs[0].args._key
-    tx = await this.drs.shareKey(childKey, accounts[1]) 
-    let sharedKey = tx.logs[0].args._key
-
-    let isAncestor = await this.drs.isAncestor(rootKey2, childKey)
-    isAncestor.should.equal(false)
-
-    //should move shared keys
-    await this.drs.moveKey(rootKey1, childKey, rootKey2)
-    isAncestor = await this.drs.isAncestor(rootKey2, childKey)
-    isAncestor.should.equal(true)
-
-    isAncestor = await this.drs.isAncestor(rootKey2, sharedKey)
-    isAncestor.should.equal(true)
-  })
 
   it('Should not be able to move a descendent with a key you do not own', async function() {
     let tx = await this.drs.createKey(this.url,{from: accounts[1]})
@@ -141,30 +119,6 @@ contract('HealthDRS :: Manage', function(accounts) {
     let isAncestor = await this.drs.isAncestor(rootKey2, childKey)
     isAncestor.should.equal(false)
   })  
-
-  it('moving a key should correctly update the related rings', async function() {
-    let tx = await this.drs.createKey(this.url)
-    let rootKey1 = tx.logs[0].args._key
-
-    tx = await this.drs.createKey(this.url)
-    let rootKey2 = tx.logs[0].args._key
-
-    tx = await this.drs.createChildKey(rootKey1) 
-    let childKey = tx.logs[0].args._key
-    let isAncestor = await this.drs.isAncestor(rootKey2, childKey)
-    isAncestor.should.equal(false)
-
-    //move from own key you own to another you own
-    await this.drs.moveKey(rootKey1, childKey, rootKey2)
-    let secondaryKeys = await this.drs.getSecondaryKeys(rootKey1)
-    secondaryKeys.length.should.equal(1)
-
-    secondaryKeys = await this.drs.getSecondaryKeys(rootKey2)
-    secondaryKeys.length.should.equal(2)
-
-    isAncestor = await this.drs.isAncestor(rootKey2, childKey)
-    isAncestor.should.equal(true)
-  })
 
   it('An owned ancestor key should be able to access a keys data', async function() {
     let tx = await this.drs.createKey(this.url)
@@ -275,5 +229,49 @@ contract('HealthDRS :: Manage', function(accounts) {
 
   })
 
+  it('should return a key', async function() {
+    let tx = await this.drs.createKey(this.url)
+    let rootKey = tx.logs[0].args._key
+
+    let key = await this.drs.getKey(rootKey)
+    key[0].should.equal(accounts[0])
+
+  })
+
+  it('should allow ancestors to set key permissions', async function() {
+    let tx = await this.drs.createKey(this.url)
+    let rootKey = tx.logs[0].args._key
+
+    tx = await this.drs.createChildKey(rootKey) 
+    let childKey = tx.logs[0].args._key
+
+    let key = await this.drs.getKey(childKey)
+    key[2].should.equal(false)
+
+    await this.drs.setKeyPermissions(rootKey, childKey, true, true, false)
+    key = await this.drs.getKey(childKey)
+    key[2].should.equal(true)
+    key[3].should.equal(true)    
+  })
+
+  it('ancestors should not be able to grant permissions they do not own', async function() {
+    let tx = await this.drs.createKey(this.url)
+    let rootKey = tx.logs[0].args._key
+
+    tx = await this.drs.createChildKey(rootKey) 
+    let childKey = tx.logs[0].args._key
+
+    tx = await this.drs.createChildKey(childKey) 
+    let grandChildKey = tx.logs[0].args._key
+
+    let key = await this.drs.getKey(grandChildKey)
+    key[2].should.equal(false)
+
+    await this.drs.setKeyPermissions(childKey, grandChildKey, true, true, false)
+    key = await this.drs.getKey(grandChildKey)
+    key[2].should.equal(false)
+    key[3].should.equal(false)    
+    
+  })
 
 })
