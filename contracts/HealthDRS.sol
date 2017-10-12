@@ -15,13 +15,12 @@ import 'zeppelin-solidity/contracts/token/StandardToken.sol';
 contract HealthDRS is Ownable {
 
     struct Key {
-        address owner;   
         uint8 depth;
         bool shareable;
         bool tradeable;
         bool salable;
-        bytes32 parent;
-        mapping(bytes32 => bytes32) data;                
+        bytes32 parent;        
+        address owner;
     }
 
     struct SalesOffer {
@@ -31,13 +30,15 @@ contract HealthDRS is Ownable {
 
     mapping (bytes32 => string) urls;
     mapping(bytes32 => Key) keys;
-    mapping(bytes32 => address[]) sharedOwners;    
+    mapping(bytes32 => bytes32) public keyData;        
+    mapping(bytes32 => address[]) public sharedOwners;    
     mapping(address => bytes32[]) public accountKeys;     
     mapping(bytes32 => SalesOffer) public salesOffers;
     mapping(bytes32 => bytes32) public tradeOffers;    
-    address public latestContract = address(this);
+    
     StandardToken public token;
-    uint16 public version = 1;     
+    address public latestContract = address(this);
+    uint8 public version = 1;     
 
     event KeyCreated(address indexed _owner, bytes32 indexed _key);
     event KeySold(bytes32 _key, address indexed _seller, address indexed _buyer, uint _price);
@@ -428,19 +429,21 @@ contract HealthDRS is Ownable {
     function getKeyData(bytes32 ancestor, bytes32 child, bytes32 dataKey)
         public
         constant
-        ownsKey(ancestor)        
+        ownsKey(ancestor)
+        validKey(child) 
         returns (bytes32)
     {
         require(isAncestor(ancestor, child));
-        return keys[child].data[dataKey];
+        return keyData[keccak256(child,dataKey)];
     }
 
     function setKeyData(bytes32 ancestor, bytes32 child, bytes32 dataKey, bytes32 dataValue)
         public
         ownsKey(ancestor)        
+        validKey(child)
     {
         require(isAncestor(ancestor, child));
-        keys[child].data[dataKey] = dataValue;
+        keyData[keccak256(child,dataKey)] = dataValue;
     }
 
     /**
