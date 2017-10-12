@@ -14,36 +14,14 @@ import 'zeppelin-solidity/contracts/token/StandardToken.sol';
 
 contract HealthDRS is Ownable {
 
-    /*  
-    *  Keys are owned by accounts. 
-    *
-    *  Rings are used to establish relationships
-    *  between keys and provide iteration over 
-    *  related keys.
-    *
-    *  All keys are stored in the keys mapping
-    *  and all rings are stored in the rings array. 
-    *  Ring index is stored inside the key as primary
-    *  and secondary ring and the Key's key/hash is 
-    *  stored inside the ring's keys array. 
-    *
-    *  This structure lets us create branching
-    *  relationships represented in further comments as
-    *  a-z for keys and |(x) for rings at the optionally 
-    *  specified distance (x).
-    */
-
     struct Key {
-        address owner;        
-        uint primary; 
-        uint secondary;
-        mapping(bytes32 => bytes32) data;
-    }
-
-    struct Ring {
-        uint url;
-        uint distance;
-        bytes32[] keys;
+        address owner;   
+        uint8 depth;
+        bool shareable;
+        bool tradeable;
+        bool salable;
+        bytes32 parent;
+        mapping(bytes32 => bytes32) data;                
     }
 
     struct SalesOffer {
@@ -51,9 +29,9 @@ contract HealthDRS is Ownable {
         uint price;
     }
 
-    string[] urls;
-    Ring[] rings; 
+    mapping (bytes32 => string) urls;
     mapping(bytes32 => Key) keys;
+    mapping(bytes32 => address[]) sharedOwners;    
     mapping(address => bytes32[]) public accountKeys;     
     mapping(bytes32 => SalesOffer) public salesOffers;
     mapping(bytes32 => bytes32) public tradeOffers;    
@@ -61,8 +39,7 @@ contract HealthDRS is Ownable {
     StandardToken public token;
     uint16 public version = 1;     
 
-    event KeyCreated(bytes32 indexed _key);
-    event KeyTransfered(bytes32 indexed _key, address _old, address _new);
+    event KeyCreated(address indexed _owner, bytes32 indexed _key);
     event KeySold(bytes32 _key, address indexed _seller, address indexed _buyer, uint _price);
     event KeysTraded(bytes32 indexed _key1, bytes32 indexed _key2);
     event KeyMoved(bytes32 indexed _key, bytes32 _from, bytes32 _to);
@@ -71,12 +48,27 @@ contract HealthDRS is Ownable {
     event Log(address indexed _owner, bytes32 indexed _from, uint _time, string _data);        
 
     modifier ownsKey(bytes32 key) {
-      require(keys[key].owner == msg.sender);
-      _;
+        require(isOwner(key, msg.sender));
+        _;
     }
  
     modifier validKey(bytes32 key) {
-      require(keys[key].secondary > 0);
+      require(keys[key].owner != address(0));
+      _;
+    }
+
+    modifier canSell(bytes32 key) {
+      require(keys[key].salable);
+      _;
+    }
+
+    modifier canTrade(bytes32 key) {
+      require(keys[key].tradeable);
+      _;
+    }
+
+    modifier canShare(bytes32 key) {
+      require(keys[key].shareable);
       _;
     }
 
@@ -85,29 +77,24 @@ contract HealthDRS is Ownable {
     * used to refrence gatekeeper services
     * which use these keys to permission access
     */
+
     function getURL(bytes32 key) 
         public 
         constant 
         validKey(key) 
         returns (string) 
     {
-        if (rings[keys[key].primary].distance == 0) {
-            return urls[rings[keys[key].primary].url];
+        if (keys[key].depth == 0) {
+            return urls[key];
         } else {
-            bytes32 id;
-            for (uint i = 0; i < rings[keys[key].primary].keys.length; i++) {
-                id = rings[keys[key].primary].keys[i];
-                if (rings[keys[id].primary].distance < rings[keys[key].primary].distance) {
-                    return getURL(id);
-                }
-            }
+           return getURL(keys[key].parent);
         }
     }
 
     //owners of root keys can update the url
     function updateURL(bytes32 key, string url) public ownsKey(key) {
-       require(rings[keys[key].primary].distance == 0); //root key only
-       urls[rings[keys[key].primary].url] = url;
+       require(keys[key].depth == 0); //root key only
+       urls[key] = url;
     }
 
     //to purchase keys a user must authorize this contract to spend HLTH
@@ -128,173 +115,75 @@ contract HealthDRS is Ownable {
         latestContract = _contract;
     }
 
+    function createKey(string url) public {
 
-    /* createKey
-    *  takes a url and returns a key on a root 
-    *  ring (0), that has a secondary ring (1).
-    *
-    *           |(0)
-    *           k
-    *           |(1)
-    */
-    function createKey(string url) public returns (bytes32 id) {
-
-        id = keccak256(url,now,msg.sender);
+        bytes32 id = keccak256(url,now,msg.sender);
 
         //do not recreate keys
-        require(keys[id].secondary == 0);
+        require(keys[id].owner == address(0));
         keys[id].owner = msg.sender;       
+        keys[id].depth = 0;
+        keys[id].shareable = true;
+        keys[id].tradeable = true;
+        keys[id].salable = true;
+        urls[id] = url; //save the url
 
-        Ring memory primary;
-        primary.distance = 0;             
-        primary.url = urls.push(url) - 1; 
-        keys[id].primary = rings.push(primary) - 1; 
-        rings[keys[id].primary].keys.push(id);
-
-        //secondary ring
-        Ring memory secondary;
-        secondary.distance = 1;
-        keys[id].secondary = rings.push(secondary) - 1;
-        rings[keys[id].secondary].keys.push(id);
-
-        accountKeys[msg.sender].push(id); //also tracks keys by address
-        KeyCreated(id);
+        accountKeys[msg.sender].push(id);
+        KeyCreated(msg.sender, id);
     }
 
-    /* createPeerKey
-    *  takes a key (x) returns a key (y) on the
-    *  same primary ring, creating a new secondary
-    *  ring. 
-    *
-    *         |
-    *        x y
-    *        | |
-    */
-    function createPeerKey(bytes32 key)
-        public 
-        ownsKey(key)
-        returns (bytes32 id)
-    {
-       //create a unique id 
-       id = keccak256(key,now,msg.sender);
-
-        //do not recreate keys
-        require(keys[id].secondary == 0);
-
-       keys[id].owner = msg.sender; 
-
-       //primary is the same
-       keys[id].primary = keys[key].primary;
-       rings[keys[id].primary].keys.push(id);
-
-       //new secondary ring
-       Ring memory secondary;
-       secondary.distance = rings[keys[id].primary].distance + 1;
-       keys[id].secondary = rings.push(secondary) - 1;
-       rings[keys[id].secondary].keys.push(id);
-       accountKeys[msg.sender].push(id);
-
-       KeyCreated(id);
-    }
-
-    /* createChildKey
-    *  takes a key (x) you own and returns 
-    *  a key (y), creating a new secondary key. 
-    *  x's secondary ring and y's primary ring
-    *  are the same
-    * 
-    *         |
-    *         x 
-    *         | 
-    *         y
-    *         | 
-    */
     function createChildKey(bytes32 key)
         public
         ownsKey(key)
         returns (bytes32 id)
     {
+        //depth limited to 100
+        require(keys[key].depth < 100); 
+        
         //create a unique id 
         id = keccak256(key,now,msg.sender);
 
         //do not recreate keys
-        require(keys[id].secondary == 0);
-
+        require(keys[id].owner == address(0));
         keys[id].owner = msg.sender; 
-
-        //primary is parent's secondary
-        keys[id].primary = keys[key].secondary;
-        rings[keys[id].primary].keys.push(id);
-
-        //secondary ring
-        Ring memory secondary;
-        secondary.distance = rings[keys[id].primary].distance + 1;
-        keys[id].secondary = rings.push(secondary) - 1;
-        rings[keys[id].secondary].keys.push(id);
+        keys[id].depth = keys[key].depth + 1;
+        keys[id].parent = key;
 
         accountKeys[msg.sender].push(id);
-        KeyCreated(id);
+        KeyCreated(msg.sender, id);
     }
 
-    /* createCloneKey
-    *  takes a key (x) you own and returns 
-    *  a key (y) creating no new rings. This
-    *  is used to share a key's acess with 
-    *  other accounts. 
-    *
-    *         |
-    *        x y
-    *         | 
-    */
-    function createCloneKey(bytes32 key)
-        public
-        ownsKey(key)
-        returns (bytes32 id) 
-    {
-        //create a unique id 
-        id = keccak256(key,now,msg.sender);
-
-        //do not recreate keys
-        require(keys[id].secondary == 0);
-
-        keys[id].owner = msg.sender; 
-
-        //primary is the same
-        keys[id].primary = keys[key].primary;
-        rings[keys[id].primary].keys.push(id);   
-
-        //secondary is the same
-        keys[id].secondary = keys[key].secondary;
-        rings[keys[id].secondary].keys.push(id);
-
-        accountKeys[msg.sender].push(id);
-
-        KeyCreated(id);
-    }
-
-    /**
-    * Share Keys
-    * Creates a clone key as above, then assigns
-    * ownership to another account. 
-    */
     function shareKey(bytes32 key, address account)
         public
         ownsKey(key)
-        returns (bytes32 id)
+        canShare(key)
     {
-        id = createCloneKey(key);
-        transferKey(id, account);
+        if (isOwner(key, account) == false) {
+            sharedOwners[key].push(account);
+            accountKeys[account].push(key);            
+        }
     }
 
-    function transferKey(bytes32 key, address newOwner)
+    function unShareKey(bytes32 key, address account)
         public
-        ownsKey(key)    
+        ownsKey(key)
     {
-       KeyTransfered(key, keys[key].owner, newOwner);
-
-       removeFromAccountKeys(keys[key].owner, key);
-       accountKeys[newOwner].push(key);
-       keys[key].owner = newOwner; 
+        if (keys[key].owner != account) {
+            bool foundKey = false;
+            for (uint i = 0; i < sharedOwners[key].length; i++) { 
+                if (sharedOwners[key][i] == account) {
+                    foundKey = true;
+                    break;
+                }
+            }
+            if (foundKey) {
+                if (i != sharedOwners[key].length - 1) {
+                    sharedOwners[key][i] = sharedOwners[key][sharedOwners[key].length - 1];
+                }
+                sharedOwners[key].length--;
+                removeFromAccountKeys(account, key);                
+            }
+        }
     }
 
     /** 
@@ -303,6 +192,7 @@ contract HealthDRS is Ownable {
     function createSalesOffer(bytes32 key, address buyer, uint price)
         public
         ownsKey(key)
+        canSell(key)
     {
         //cancell trade offer & create sales offer
         tradeOffers[key] = bytes32(0);
@@ -313,12 +203,16 @@ contract HealthDRS is Ownable {
     function cancelSalesOffer(bytes32 key)
         public
         ownsKey(key)
+        canSell(key)        
     {
         salesOffers[key].buyer = address(0);
         salesOffers[key].price = 0;
     }
 
-    function purchaseKey(bytes32 key, uint value) public {
+    function purchaseKey(bytes32 key, uint value) 
+        public
+        canSell(key)                
+    {
 
        //require explictit authority to spend tokens on the purchasers behalf
        require(value <= authorizedToSpend()); 
@@ -345,6 +239,8 @@ contract HealthDRS is Ownable {
     function tradeKey(bytes32 have, bytes32 want)
         public
         ownsKey(have)
+        canTrade(have)        
+        canTrade(want)        
     {
        if (tradeOffers[want] == have) {
            
@@ -371,18 +267,91 @@ contract HealthDRS is Ownable {
     * Manage Keys
     * manage, update, and inspect keys
     */
-    function getKeyOwner(bytes32 key) 
+
+    function getKey(bytes32 key) 
         public
         constant
         validKey(key)
-        returns (address) 
+        returns(address, uint8, bool, bool, bool, bytes32) 
     {
-        return keys[key].owner;
+       return (keys[key].owner, 
+               keys[key].depth, 
+               keys[key].shareable, 
+               keys[key].tradeable, 
+               keys[key].salable, 
+               keys[key].parent);
     }
 
-    //note: recursive implementation limits the
-    //ancestry dept to around 100, well more than
-    //the expected need
+    //only allow ancestor to grant/deny permission they have
+    function setKeyPermissions(
+        bytes32 ancestor, 
+        bytes32 descendant, 
+        bool shareable, 
+        bool tradeable, 
+        bool salable)
+        public
+        ownsKey(ancestor)
+        validKey(descendant)
+    {
+        require(isAncestor(ancestor, descendant));
+        
+        if (keys[ancestor].shareable) {
+            keys[descendant].shareable = shareable;
+            //unshare if shared
+            if (shareable == false) {
+                for (uint i = 0; i < sharedOwners[descendant].length; i++) { 
+                    removeFromAccountKeys(sharedOwners[descendant][i], descendant);  
+                }
+                sharedOwners[descendant].length = 0;
+            }
+        }
+
+        if (keys[ancestor].tradeable) {
+            keys[descendant].tradeable = tradeable;
+            //cancel any existing trades
+            if (tradeable == false) {
+                tradeOffers[descendant] = "";
+            }
+        }
+
+        if (keys[ancestor].salable) {
+            keys[descendant].salable = salable;
+            //cancel any existing sales
+            if (salable == false) {                
+                salesOffers[descendant].buyer = 0;
+                salesOffers[descendant].price = 0;
+            }            
+        }
+
+    }        
+
+    function isOwner(bytes32 key, address account) 
+        public 
+        constant
+        validKey(key)
+        returns (bool)
+    {
+        bool owns = false;
+        if (keys[key].owner == account) {
+            owns = true;
+        }
+        if (owns == false && keys[key].shareable) {
+            for (uint i = 0; i < sharedOwners[key].length; i++) {
+                if (sharedOwners[key][i] == account) {
+                    owns = true;
+                    break;
+                }
+           }
+        }
+
+        return owns;
+    }
+   
+    /* Recursive implementation limits the
+       ancestry dept to around 100, we impose this 
+       limit in the createChild function to avoid
+       this. 
+    */
     function isAncestor(bytes32 ancestor, bytes32 key)
         public 
         constant
@@ -390,130 +359,46 @@ contract HealthDRS is Ownable {
         validKey(key)        
         returns (bool) 
     {
-        
-        if (keys[ancestor].secondary == keys[key].primary) {
-             return true;
-        } else if (rings[keys[ancestor].secondary].distance > rings[keys[key].primary].distance) {
-            return false;  
+        if (keys[key].depth == 0) {
+            return false;
+        } else if (keys[key].parent == ancestor) {
+            return true;
+        } else {
+            return isAncestor(ancestor, keys[key].parent);
         }
+    } 
 
-        bytes32 id; 
-        for (uint i = 0; i < rings[keys[key].primary].keys.length; i++) {
-            id = rings[keys[key].primary].keys[i];
-            if (rings[keys[id].primary].distance < rings[keys[key].primary].distance) {
-                return isAncestor(ancestor, id); 
-            }                
-        }
-
-        return false;
-    }   
-
-    /* moveKey
-    *  takes a key (x) you own and moves 
-    *  a descendant key (y) to another key
-    *  (z) you own. Also moves clone keys
-    *  (c).
-    *
-    *   Before     After
-    *      |         |
-    *    x   z     x   z 
-    *    |   |     |   |
-    *   y c           y c
-    *    |             |
-    *            
-    */
     function moveKey(bytes32 ancestor, bytes32 key, bytes32 destination) 
         public
         ownsKey(ancestor)    
         ownsKey(destination)
     {
         require(isAncestor(ancestor, key));
-
-        //move key and all shared keys
-        bytes32[] memory primaryKeys = rings[keys[key].primary].keys;
-        uint secondary = keys[key].secondary;
-        for (uint i = 0; i < primaryKeys.length; i++) { 
-            if (keys[primaryKeys[i]].secondary == secondary) {
-                moveKeyUnder(primaryKeys[i], destination);
-                KeyMoved(primaryKeys[i], ancestor, destination);
-            }
-        }
+        keys[key].parent = destination;
     }
 
-    function getAccountKeysLength(address account) public constant returns(uint) {
-        return accountKeys[account].length;
-    }
-
-    function getPrimaryKeys(bytes32 key) 
-        public 
-        constant
-        ownsKey(key)
-        returns(bytes32[])
-    {
-        return rings[keys[key].primary].keys;
-    }
-
-    function getSecondaryKeys(bytes32 key) 
-        public 
-        constant
-        ownsKey(key)
-        returns(bytes32[])
-    {
-        return rings[keys[key].secondary].keys;
-    }
-
-    function getAncestorCount(bytes32 descendant)
+    function getAncestorCount(bytes32 key)
         public
         constant
-        validKey(descendant)
+        validKey(key)
         returns(uint) 
     {
-       return rings[keys[descendant].primary].distance;
+       return keys[key].depth;
     }
 
-    function getAncestor(bytes32 key, uint distance)
+    function getAncestor(bytes32 key, uint depth)
         public 
         constant
         validKey(key)        
         returns (bytes32)
     {
-        require(distance <= getAncestorCount(key));
+        require(depth <= getAncestorCount(key));
 
-        if (rings[keys[key].primary].distance == distance) {
+        if (keys[key].depth == depth) {
             return key;
         } else {
-            bytes32 id;
-            for (uint i = 0; i < rings[keys[key].primary].keys.length; i++) {
-                id = rings[keys[key].primary].keys[i];
-                if (rings[keys[id].primary].distance < rings[keys[key].primary].distance) {
-                    return getAncestor(id, distance);
-                }
-            }
+            return getAncestor(keys[key].parent, depth);
         }
-    }
-
-    function moveKeyUnder(bytes32 key, bytes32 destination) private {
-        removeKeyFromItsPrimaryRing(key);
-        keys[key].primary = keys[destination].secondary;
-        rings[keys[key].primary].keys.push(key);  
-    }
-
-    function removeKeyFromItsPrimaryRing(bytes32 key) private {
-       
-       bool foundKey = false;
-
-       for (uint i = 0; i < rings[keys[key].primary].keys.length; i++) { 
-           if (rings[keys[key].primary].keys[i] == key) {
-               foundKey = true;
-               break;
-           }
-       }
-       if (foundKey) {
-           if (i != rings[keys[key].primary].keys.length - 1) {
-               rings[keys[key].primary].keys[i] = rings[keys[key].primary].keys[rings[keys[key].primary].keys.length - 1];  
-           }
-           rings[keys[key].primary].keys.length--;   
-       }
     }
 
     function removeFromAccountKeys(address account, bytes32 key) private {
@@ -539,6 +424,7 @@ contract HealthDRS is Ownable {
     * data, such as permissions, can be stored 
     * on the blockchain for any of your descendant keys
     */
+
     function getKeyData(bytes32 ancestor, bytes32 child, bytes32 dataKey)
         public
         constant
@@ -555,6 +441,20 @@ contract HealthDRS is Ownable {
     {
         require(isAncestor(ancestor, child));
         keys[child].data[dataKey] = dataValue;
+    }
+
+    /**
+    * ECRecover
+    */
+    function recoverAddress(
+        bytes32 msgHash, 
+        uint8 v, 
+        bytes32 r, 
+        bytes32 s) 
+        constant
+        returns (address) 
+    {
+      return ecrecover(msgHash, v, r, s);
     }
 
     /**

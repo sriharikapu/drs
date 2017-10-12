@@ -18,8 +18,8 @@ contract('HealthDRS', function(accounts) {
   it('should be able to create a key', async function() {
     let tx = await this.drs.createKey('string')
     let key = tx.logs[0].args._key
-    let owner = await this.drs.getKeyOwner(key)
-    owner.should.equal(accounts[0]);    
+    let owner = await this.drs.isOwner(key,accounts[0])
+    owner.should.equal(true);    
   })
  
   it('should return the correct URL when passed a root key', async function() {
@@ -44,35 +44,15 @@ contract('HealthDRS', function(accounts) {
     tx2.logs[0].event.should.equal('KeyCreated')
     let key2 = tx2.logs[0].args._key    
     
-    let owner = await this.drs.getKeyOwner(key2)
-    owner.should.equal(accounts[0]);    
+    let owner = await this.drs.isOwner(key2,accounts[0])
+    owner.should.equal(true);    
   })
+
 
   it('should return the correct URL when passed a child key', async function() {
     let tx1 = await this.drs.createKey(this.url)
     let key1 = tx1.logs[0].args._key
     let tx2 = await this.drs.createChildKey(key1) 
-    let key2 = tx2.logs[0].args._key  
-
-    let url = await this.drs.getURL(key2) 
-    url.should.equal(this.url)    
-  })
-
-  it('should be able to create a peer key', async function() {
-    let tx1 = await this.drs.createKey(this.url)
-    let key1 = tx1.logs[0].args._key
-    let tx2 = await this.drs.createPeerKey(key1) 
-    tx2.logs[0].event.should.equal('KeyCreated')
-    let key2 = tx2.logs[0].args._key    
-    
-    let owner = await this.drs.getKeyOwner(key2)
-    owner.should.equal(accounts[0]);    
-  })
-
-  it('should return the correct URL when passed a peer key', async function() {
-    let tx1 = await this.drs.createKey(this.url)
-    let key1 = tx1.logs[0].args._key
-    let tx2 = await this.drs.createPeerKey(key1) 
     let key2 = tx2.logs[0].args._key  
 
     let url = await this.drs.getURL(key2) 
@@ -91,24 +71,6 @@ contract('HealthDRS', function(accounts) {
     let url = await this.drs.getURL(key2) 
     url.should.equal('changedUrl')    
   })
- 
-  it('should be able to clone a key you own', async function() {
-    let tx1 = await this.drs.createKey(this.url)
-    let key1 = tx1.logs[0].args._key
-    
-    let tx2 = await this.drs.createChildKey(key1) 
-    let key2 = tx2.logs[0].args._key  
-    
-    let tx3 = await this.drs.createCloneKey(key1)
-    let key3 = tx3.logs[0].args._key
 
-    //changing the url with the cloned key should 
-    //effect all the child keys of the original keys
-    await this.drs.updateURL(key3,'changedUrl')
-        
-    let url = await this.drs.getURL(key2) 
-    url.should.equal('changedUrl')        
-
-  })
 
 })
