@@ -5,100 +5,160 @@ import 'zeppelin-solidity/contracts/token/StandardToken.sol';
 
 /**
 * Health Decentralized Record Service (DRS)
-* This contract enables creation of url/key sets which can
+* This contract enables creation of services and keys which can
 * be managed, shared, traded, and sold using Health Cash (HLTH).
 * 
-* These url/key sets enable data gatekeeper services and 
+* These keys enable gatekeeper services and 
 * cryptographically secure data exchanges. 
 */
 
 contract HealthDRS is Ownable {
 
-    struct Key {
-        uint8 depth;
-        bool shareable;
-        bool tradeable;
-        bool salable;
-        bytes32 parent;        
+    StandardToken public token;
+    address public latestContract = address(this);
+    uint8 public version = 1; 
+
+    struct Service {
+        string url;
         address owner;
+    }
+
+    struct Key {
+        address owner;
+        bool canShare;
+        bool canTrade;
+        bool canSell;
+        bytes32 service;
     }
 
     struct SalesOffer {
         address buyer;
         uint price;
+        bool canSell;
     }
 
-    mapping (bytes32 => string) urls;
+    mapping (bytes32 => Service) public services;
+    bytes32[] public serviceList;
+
     mapping(bytes32 => Key) keys;
+    bytes32[] public keyList;
+
+    mapping(bytes32 => address[]) public owners;
     mapping(bytes32 => bytes32) public keyData;        
-    mapping(bytes32 => address[]) public sharedOwners;    
-    mapping(address => bytes32[]) public accountKeys;     
     mapping(bytes32 => SalesOffer) public salesOffers;
     mapping(bytes32 => bytes32) public tradeOffers;    
-    
-    StandardToken public token;
-    address public latestContract = address(this);
-    uint8 public version = 1;     
 
+    event ServiceCreated(address indexed _owner, bytes32 indexed _service);
     event KeyCreated(address indexed _owner, bytes32 indexed _key);
     event KeySold(bytes32 _key, address indexed _seller, address indexed _buyer, uint _price);
     event KeysTraded(bytes32 indexed _key1, bytes32 indexed _key2);
-    event KeyMoved(bytes32 indexed _key, bytes32 _from, bytes32 _to);
     event Access(address indexed _owner, bytes32 indexed _from, bytes32 indexed _to, uint _time, string _data);
     event Message(address indexed _owner, bytes32 indexed _from, bytes32 indexed _to, uint _time, string _category, string _data);    
     event Log(address indexed _owner, bytes32 indexed _from, uint _time, string _data);        
 
-    modifier ownsKey(bytes32 key) {
-        require(isOwner(key, msg.sender));
-        _;
-    }
- 
     modifier validKey(bytes32 key) {
       require(keys[key].owner != address(0));
       _;
     }
 
+    modifier validService(bytes32 service) {
+      require(services[service].owner != address(0));
+      _;
+    }
+
+    modifier ownsKey(bytes32 key) {
+        require(isKeyOwner(key, msg.sender));
+        _;
+    }
+ 
+    modifier ownsService(bytes32 service) {
+        require(isServiceOwner(service, msg.sender));
+        _;
+    }
+
     modifier canSell(bytes32 key) {
-      require(keys[key].salable);
+      require(keys[key].canSell);
       _;
     }
 
     modifier canTrade(bytes32 key) {
-      require(keys[key].tradeable);
+      require(keys[key].canTrade);
       _;
     }
 
     modifier canShare(bytes32 key) {
-      require(keys[key].shareable);
+      require(keys[key].canShare);
       _;
     }
 
-    /**
-    * URLs 
-    * used to refrence gatekeeper services
-    * which use these keys to permission access
-    */
+    function isKeyOwner(bytes32 key, address account) 
+        public 
+        constant
+        validKey(key)
+        returns (bool)
+    {
+        bool owns = false;
+        if (keys[key].owner == account) {
+            owns = true;
+        }
+        if (owns == false && keys[key].canShare) {
+            for (uint i = 0; i < owners[key].length; i++) {
+                if (owners[key][i] == account) {
+                    owns = true;
+                    break;
+                }
+           }
+        }
+        return owns;
+    }
 
-    function getURL(bytes32 key) 
+    function isServiceOwner(bytes32 service, address account) 
+        public 
+        constant
+        validService(service)
+        returns (bool)
+    {
+        bool owns = false;
+        if (services[service].owner == account) {
+            owns = true;
+        }
+        if (owns == false) {
+            for (uint i = 0; i < owners[service].length; i++) {
+                if (owners[service][i] == account) {
+                    owns = true;
+                    break;
+                }
+           }
+        }
+        return owns;
+    }
+
+    function getUrl(bytes32 service) 
         public 
         constant 
-        validKey(key) 
+        validService(service) 
         returns (string) 
     {
-        if (keys[key].depth == 0) {
-            return urls[key];
-        } else {
-           return getURL(keys[key].parent);
-        }
+       return services[service].url;
     }
 
-    //owners of root keys can update the url
-    function updateURL(bytes32 key, string url) public ownsKey(key) {
-       require(keys[key].depth == 0); //root key only
-       urls[key] = url;
+    function getUrlFromKey(bytes32 key)
+        public
+        constant
+        validKey(key)
+        returns (string) 
+    {
+        return services[keys[key].service].url;
     }
 
-    //to purchase keys a user must authorize this contract to spend HLTH
+    function updateUrl(bytes32 service, string url) 
+        public
+        ownsService(service)
+    {
+       services[service].url = url;
+    }
+
+    //user must authorize this contract to spend Health Cash (HLTH)
     function authorizedToSpend() public constant returns (uint) {
         return token.allowance(msg.sender, address(this)); 
     }
@@ -116,81 +176,100 @@ contract HealthDRS is Ownable {
         latestContract = _contract;
     }
 
-    function createKey(string url) public {
-
-        bytes32 id = keccak256(url,now,msg.sender);
-
-        //do not recreate keys
-        require(keys[id].owner == address(0));
-        keys[id].owner = msg.sender;       
-        keys[id].depth = 0;
-        keys[id].shareable = true;
-        keys[id].tradeable = true;
-        keys[id].salable = true;
-        urls[id] = url; //save the url
-
-        accountKeys[msg.sender].push(id);
-        KeyCreated(msg.sender, id);
+   /**
+   * Create Services & Keys
+   * Keys can also be issued to accounts
+   */
+    function createService(string url) public {
+        bytes32 id = keccak256(url);
+        require(services[id].owner == address(0)); //prevent overwriting
+        services[id].owner = msg.sender;
+        services[id].url = url;
+        serviceList.push(id);
+        ServiceCreated(msg.sender, id);
     }
 
-    function createChildKey(bytes32 key)
+    function createKey(bytes32 service) 
         public
-        ownsKey(key)
-        returns (bytes32 id)
+        ownsService(service)        
     {
-        //depth limited to 100
-        require(keys[key].depth < 100); 
-        
-        //create a unique id 
-        id = keccak256(key,now,msg.sender);
-
-        //do not recreate keys
-        require(keys[id].owner == address(0));
-        keys[id].owner = msg.sender; 
-        keys[id].depth = keys[key].depth + 1;
-        keys[id].parent = key;
-
-        accountKeys[msg.sender].push(id);
-        KeyCreated(msg.sender, id);
+        issueKey(service, msg.sender);
     }
+    
+    function issueKey(bytes32 service, address issueTo) 
+        public
+        ownsService(service)  
+    {
+        bytes32 id = keccak256(service,now,issueTo);
+        require(keys[id].owner == address(0));
+        keys[id].owner = issueTo;       
+        keys[id].service = service;
+        keyList.push(id);        
+        KeyCreated(issueTo, id);        
+    }        
 
+   /**
+   * Share Services and Keys
+   * allow owners to authorize other accounts 
+   * a service can disable sharing for thier keys. 
+   * Can also unshare. 
+   */
     function shareKey(bytes32 key, address account)
         public
         ownsKey(key)
         canShare(key)
     {
-        if (isOwner(key, account) == false) {
-            sharedOwners[key].push(account);
-            accountKeys[account].push(key);            
+        if (isKeyOwner(key, account) == false) {
+            owners[key].push(account);
         }
     }
 
-    function unShareKey(bytes32 key, address account)
+    function shareService(bytes32 service, address account)
+        public
+        ownsService(service)
+    {
+        if (isServiceOwner(service, account) == false) {
+            owners[service].push(account);
+        }
+    }
+
+    function unshareKey(bytes32 key, address account)
         public
         ownsKey(key)
     {
-        if (keys[key].owner != account) {
-            bool foundKey = false;
-            for (uint i = 0; i < sharedOwners[key].length; i++) { 
-                if (sharedOwners[key][i] == account) {
-                    foundKey = true;
-                    break;
+        for (uint i = 0; i < owners[key].length; i++) { 
+            if (owners[key][i] == account) {
+                if (i != owners[key].length - 1) {
+                    owners[key][i] = owners[key][owners[key].length - 1];
                 }
-            }
-            if (foundKey) {
-                if (i != sharedOwners[key].length - 1) {
-                    sharedOwners[key][i] = sharedOwners[key][sharedOwners[key].length - 1];
-                }
-                sharedOwners[key].length--;
-                removeFromAccountKeys(account, key);                
+                owners[key].length--;
+                break;
             }
         }
     }
 
-    /** 
+    function unshareService(bytes32 service, address account)
+        public
+        ownsService(service)
+    {
+        for (uint i = 0; i < owners[service].length; i++) { 
+            if (owners[service][i] == account) {
+                if (i != owners[service].length - 1) {
+                    owners[service][i] = owners[service][owners[service].length - 1];
+                }
+                owners[service].length--;
+                break;
+            }
+        }
+    }
+
+    /**
     * Sell Keys
+    * Services have to authorize keys for sale. 
+    * Key owners can disable key selling at time 
+    * of sale to prevent re-selling. 
     */
-    function createSalesOffer(bytes32 key, address buyer, uint price)
+    function createSalesOffer(bytes32 key, address buyer, uint price, bool _canSell)
         public
         ownsKey(key)
         canSell(key)
@@ -199,15 +278,16 @@ contract HealthDRS is Ownable {
         tradeOffers[key] = bytes32(0);
         salesOffers[key].buyer = buyer;
         salesOffers[key].price = price;
+        salesOffers[key].canSell = _canSell;        
     }
 
     function cancelSalesOffer(bytes32 key)
         public
         ownsKey(key)
-        canSell(key)        
     {
         salesOffers[key].buyer = address(0);
         salesOffers[key].price = 0;
+        salesOffers[key].canSell = false;
     }
 
     function purchaseKey(bytes32 key, uint value) 
@@ -220,22 +300,20 @@ contract HealthDRS is Ownable {
        require(salesOffers[key].buyer == msg.sender);
        require(salesOffers[key].price == value);       
 
-       //price is in HLTH tokens
+       //price, in HLTH tokens, is paid to the key's primary owner
        assert(token.transferFrom(msg.sender, keys[key].owner, value));
        
        KeySold(key, keys[key].owner, msg.sender, value);
-
-       removeFromAccountKeys(keys[key].owner, key);
-       accountKeys[msg.sender].push(key);
        keys[key].owner = msg.sender;
-       
-       //key is no longer for sale
-       salesOffers[key].buyer = 0;
-       salesOffers[key].price = 0;
+       //allows for non-resellable keys
+       keys[key].canSell = salesOffers[key].canSell; 
+
     }
- 
+
     /**
-    * Trade Keys
+    * Trade keys
+    * both keys have to be authorized
+    * to trade by thier respective services. 
     */
     function tradeKey(bytes32 have, bytes32 want)
         public
@@ -249,11 +327,6 @@ contract HealthDRS is Ownable {
            tradeOffers[want] = ""; //remove the tradeOffer
 
            //complete the trade
-           removeFromAccountKeys(keys[have].owner, have);
-           removeFromAccountKeys(keys[want].owner, want);           
-           accountKeys[keys[want].owner].push(have);           
-           accountKeys[msg.sender].push(want);                      
-
            keys[have].owner = keys[want].owner;
            keys[want].owner = msg.sender;
 
@@ -266,188 +339,99 @@ contract HealthDRS is Ownable {
 
     /**
     * Manage Keys
-    * manage, update, and inspect keys
+    * Service owner can set key permissions
+    * disabling sharing, trading, or selling 
+    * removes shared owners, active trade 
+    * offers, and active sales offers respectively
+    *
+    * Should also be able to get a key and service,
+    * get a count of keys and services, and get
+    * a key and service key from the respective 
+    * lists. 
     */
+    //service owner can set permissions
+    function setKeyPermissions(
+        bytes32 key, 
+        bool canShare_, 
+        bool canTrade_, 
+        bool canSell_)
+        public
+        validKey(key)
+    {
+        require(isServiceOwner(keys[key].service, msg.sender));
+
+        keys[key].canShare = canShare_;
+        if (canShare_ == false) {
+            owners[key].length = 0;
+        }
+
+        keys[key].canTrade = canTrade_;
+        if (canTrade_ == false) {
+            tradeOffers[key] = "";
+        }
+
+        keys[key].canSell = canSell_;
+        if (canSell_ == false) {                
+            salesOffers[key].buyer = 0;
+            salesOffers[key].price = 0;
+        }            
+
+    }
+
+    function getServiceCount() public constant returns (uint) {
+        return serviceList.length;
+    }
+
+    function getKeyCount() public constant returns (uint) {
+        return keyList.length;
+    }
+
+    function getService(bytes32 service) 
+        public
+        constant
+        validService(service)
+        returns(string, address) 
+    {
+       return (services[service].url, services[service].owner);
+    }
 
     function getKey(bytes32 key) 
         public
         constant
         validKey(key)
-        returns(address, uint8, bool, bool, bool, bytes32) 
+        returns(address, bool, bool, bool, bytes32) 
     {
        return (keys[key].owner, 
-               keys[key].depth, 
-               keys[key].shareable, 
-               keys[key].tradeable, 
-               keys[key].salable, 
-               keys[key].parent);
-    }
-
-    //only allow ancestor to grant/deny permission they have
-    function setKeyPermissions(
-        bytes32 ancestor, 
-        bytes32 descendant, 
-        bool shareable, 
-        bool tradeable, 
-        bool salable)
-        public
-        ownsKey(ancestor)
-        validKey(descendant)
-    {
-        require(isAncestor(ancestor, descendant));
-        
-        if (keys[ancestor].shareable) {
-            keys[descendant].shareable = shareable;
-            //unshare if shared
-            if (shareable == false) {
-                for (uint i = 0; i < sharedOwners[descendant].length; i++) { 
-                    removeFromAccountKeys(sharedOwners[descendant][i], descendant);  
-                }
-                sharedOwners[descendant].length = 0;
-            }
-        }
-
-        if (keys[ancestor].tradeable) {
-            keys[descendant].tradeable = tradeable;
-            //cancel any existing trades
-            if (tradeable == false) {
-                tradeOffers[descendant] = "";
-            }
-        }
-
-        if (keys[ancestor].salable) {
-            keys[descendant].salable = salable;
-            //cancel any existing sales
-            if (salable == false) {                
-                salesOffers[descendant].buyer = 0;
-                salesOffers[descendant].price = 0;
-            }            
-        }
-
-    }        
-
-    function isOwner(bytes32 key, address account) 
-        public 
-        constant
-        validKey(key)
-        returns (bool)
-    {
-        bool owns = false;
-        if (keys[key].owner == account) {
-            owns = true;
-        }
-        if (owns == false && keys[key].shareable) {
-            for (uint i = 0; i < sharedOwners[key].length; i++) {
-                if (sharedOwners[key][i] == account) {
-                    owns = true;
-                    break;
-                }
-           }
-        }
-
-        return owns;
-    }
-   
-    /* Recursive implementation limits the
-       ancestry dept to around 100, we impose this 
-       limit in the createChild function to avoid
-       this. 
-    */
-    function isAncestor(bytes32 ancestor, bytes32 key)
-        public 
-        constant
-        validKey(ancestor)
-        validKey(key)        
-        returns (bool) 
-    {
-        if (keys[key].depth == 0) {
-            return false;
-        } else if (keys[key].parent == ancestor) {
-            return true;
-        } else {
-            return isAncestor(ancestor, keys[key].parent);
-        }
-    } 
-
-    function moveKey(bytes32 ancestor, bytes32 key, bytes32 destination) 
-        public
-        ownsKey(ancestor)    
-        ownsKey(destination)
-    {
-        require(isAncestor(ancestor, key));
-        keys[key].parent = destination;
-    }
-
-    function getAncestorCount(bytes32 key)
-        public
-        constant
-        validKey(key)
-        returns(uint) 
-    {
-       return keys[key].depth;
-    }
-
-    function getAncestor(bytes32 key, uint depth)
-        public 
-        constant
-        validKey(key)        
-        returns (bytes32)
-    {
-        require(depth <= getAncestorCount(key));
-
-        if (keys[key].depth == depth) {
-            return key;
-        } else {
-            return getAncestor(keys[key].parent, depth);
-        }
-    }
-
-    function removeFromAccountKeys(address account, bytes32 key) private {
-
-       bool foundKey = false;
-
-       for (uint i = 0; i < accountKeys[account].length; i++) { 
-           if (accountKeys[account][i] == key) {
-               foundKey = true;
-               break;
-           }
-       }
-       if (foundKey) {
-           if (i != accountKeys[account].length - 1) {
-               accountKeys[account][i] = accountKeys[account][accountKeys[account].length - 1];
-           }
-           accountKeys[account].length--;   
-       }
+               keys[key].canShare, 
+               keys[key].canTrade, 
+               keys[key].canSell, 
+               keys[key].service);
     }
 
     /**
     * Key Data 
-    * data, such as permissions, can be stored 
-    * on the blockchain for any of your descendant keys
+    * A service can store public data for its keys.
     */
-
-    function getKeyData(bytes32 ancestor, bytes32 child, bytes32 dataKey)
+    function getKeyData(bytes32 key, bytes32 dataKey)
         public
         constant
-        ownsKey(ancestor)
-        validKey(child) 
+        validKey(key) 
         returns (bytes32)
     {
-        require(isAncestor(ancestor, child));
-        return keyData[keccak256(child,dataKey)];
+        return keyData[keccak256(key,dataKey)];
     }
 
-    function setKeyData(bytes32 ancestor, bytes32 child, bytes32 dataKey, bytes32 dataValue)
+    function setKeyData(bytes32 service, bytes32 key, bytes32 dataKey, bytes32 dataValue)
         public
-        ownsKey(ancestor)        
-        validKey(child)
+        ownsService(service)        
+        validKey(key)
     {
-        require(isAncestor(ancestor, child));
-        keyData[keccak256(child,dataKey)] = dataValue;
+        require(keys[key].service == service);
+        keyData[keccak256(key,dataKey)] = dataValue;
     }
 
     /**
-    * ECRecover
+    * ecrecover passthrough
     */
     function recoverAddress(
         bytes32 msgHash, 
@@ -462,29 +446,47 @@ contract HealthDRS is Ownable {
 
     /**
     * Logging & Messaging
-    * functions for creating an auditable record of activity
+    * functions for creating an auditable record of activity. 
+    * A service can log access from any of its keys. 
     */
-    function logAccess(bytes32 from, bytes32 to, string data)
+    function logAccess(bytes32 service, bytes32 key, string data)
         public
-        ownsKey(from)
-        validKey(to)        
+        ownsService(service)
+        validKey(key)        
     {
-        require(isAncestor(from, to));
-        Access(msg.sender, from, to, now, data);
+        require(keys[key].service == service);
+        Access(msg.sender, service, key, now, data);
     }
 
+    //services and keys can log messages to each other
     function message(bytes32 from, bytes32 to, string category, string data)
         public
-        ownsKey(from)
-        validKey(to)
     {
+        bool ownsFrom = false;
+        if (isKeyOwner(from, msg.sender) || isServiceOwner(from, msg.sender)) {
+            ownsFrom = true;
+        }
+        require(ownsFrom);
+
+        bool validTo = false;
+        if (keys[to].owner != address(0) || services[to].owner != address(0)) {
+            validTo = true;
+        }
+        require(validTo);
+
         Message(msg.sender, from, to, now, category, data);
     }
 
+    //any key or service can log
     function log(bytes32 from, string data)
         public
-        ownsKey(from)            
     {
+        bool ownsFrom = false;
+        if (isKeyOwner(from, msg.sender) || isServiceOwner(from, msg.sender)) {
+            ownsFrom = true;
+        }
+        require(ownsFrom);
+
         Log(msg.sender, from, now, data);
     }
 
