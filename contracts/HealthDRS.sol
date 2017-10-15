@@ -16,7 +16,7 @@ contract HealthDRS is Ownable {
 
     StandardToken public token;
     address public latestContract = address(this);
-    uint8 public version = 1; 
+    uint8 public version = 1;
 
     struct Service {
         string url;
@@ -97,19 +97,18 @@ contract HealthDRS is Ownable {
         validKey(key)
         returns (bool)
     {
-        bool owns = false;
         if (keys[key].owner == account) {
-            owns = true;
-        }
-        if (owns == false && keys[key].canShare) {
-            for (uint i = 0; i < owners[key].length; i++) {
-                if (owners[key][i] == account) {
-                    owns = true;
-                    break;
+            return true;
+        } else {
+            if (keys[key].canShare) {
+                for (uint i = 0; i < owners[key].length; i++) {
+                    if (owners[key][i] == account) {
+                        return true;
+                    }
                 }
-           }
+            }
         }
-        return owns;
+        return false;
     }
 
     function isServiceOwner(bytes32 service, address account) 
@@ -118,19 +117,16 @@ contract HealthDRS is Ownable {
         validService(service)
         returns (bool)
     {
-        bool owns = false;
         if (services[service].owner == account) {
-            owns = true;
-        }
-        if (owns == false) {
+            return true;
+        } else {
             for (uint i = 0; i < owners[service].length; i++) {
                 if (owners[service][i] == account) {
-                    owns = true;
-                    break;
+                    return true;
                 }
            }
         }
-        return owns;
+        return false;
     }
 
     function getUrl(bytes32 service) 
@@ -200,7 +196,7 @@ contract HealthDRS is Ownable {
         public
         ownsService(service)  
     {
-        bytes32 id = keccak256(service,now,issueTo);
+        bytes32 id = keccak256(service, now, issueTo);
         require(keys[id].owner == address(0));
         keys[id].owner = issueTo;       
         keys[id].service = service;
@@ -300,14 +296,17 @@ contract HealthDRS is Ownable {
        require(salesOffers[key].buyer == msg.sender);
        require(salesOffers[key].price == value);       
 
-       //price, in HLTH tokens, is paid to the key's primary owner
+       /** 
+       * Price in HLTH tokens is transfered from the purchaser
+       * to the primary owner of the key.
+       */
        assert(token.transferFrom(msg.sender, keys[key].owner, value));
        
        KeySold(key, keys[key].owner, msg.sender, value);
        keys[key].owner = msg.sender;
-       //allows for non-resellable keys
-       keys[key].canSell = salesOffers[key].canSell; 
 
+       //set canSell - allows for non-resellable keys
+       keys[key].canSell = salesOffers[key].canSell; 
     }
 
     /**
@@ -357,9 +356,8 @@ contract HealthDRS is Ownable {
         bool canSell_)
         public
         validKey(key)
+        ownsService(keys[key].service)           
     {
-        require(isServiceOwner(keys[key].service, msg.sender));
-
         keys[key].canShare = canShare_;
         if (canShare_ == false) {
             owners[key].length = 0;
@@ -412,6 +410,14 @@ contract HealthDRS is Ownable {
     * Key Data 
     * A service can store public data for its keys.
     */
+    function setKeyData(bytes32 key, bytes32 dataKey, bytes32 dataValue)
+        public
+        validKey(key)
+        ownsService(keys[key].service)        
+    {
+        keyData[keccak256(key,dataKey)] = dataValue;
+    }
+    
     function getKeyData(bytes32 key, bytes32 dataKey)
         public
         constant
@@ -419,15 +425,6 @@ contract HealthDRS is Ownable {
         returns (bytes32)
     {
         return keyData[keccak256(key,dataKey)];
-    }
-
-    function setKeyData(bytes32 service, bytes32 key, bytes32 dataKey, bytes32 dataValue)
-        public
-        ownsService(service)        
-        validKey(key)
-    {
-        require(keys[key].service == service);
-        keyData[keccak256(key,dataKey)] = dataValue;
     }
 
     /**
@@ -449,13 +446,12 @@ contract HealthDRS is Ownable {
     * functions for creating an auditable record of activity. 
     * A service can log access from any of its keys. 
     */
-    function logAccess(bytes32 service, bytes32 key, string data)
+    function logAccess(bytes32 key, string data)
         public
-        ownsService(service)
-        validKey(key)        
+        validKey(key)
+        ownsService(keys[key].service)
     {
-        require(keys[key].service == service);
-        Access(msg.sender, service, key, now, data);
+        Access(msg.sender, keys[key].service, key, now, data);
     }
 
     //services and keys can log messages to each other

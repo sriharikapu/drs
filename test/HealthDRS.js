@@ -57,7 +57,7 @@ contract('HealthDRS', function(accounts) {
     owner.should.equal(true);    
   })
 
-  it('should return the correct URL when passed a child key', async function() {
+  it('should return the correct URL when passed a key', async function() {
     let tx1 = await this.drs.createService(this.url)
     let service = tx1.logs[0].args._service
     let tx2 = await this.drs.createKey(service) 
@@ -67,7 +67,7 @@ contract('HealthDRS', function(accounts) {
     url.should.equal(this.url)    
   })
 
-  it('should update url when using a root key', async function() {
+  it('should update url when using a service key', async function() {
     let tx = await this.drs.createService(this.url)
     let service = tx.logs[0].args._service
     

@@ -67,4 +67,30 @@ contract('HealthDRS :: Manage', function(accounts) {
     retrievedKey.should.be.equal(key)
   })
 
-})
+  it('A service should be able to store key data', async function() {		
+      let tx = await this.drs.createKey(this.service)		
+      let key = tx.logs[0].args._key		
+  		
+      //set data - requires service owner
+      await this.drs.setKeyData(key, 'permissions', 'read')		
+      //readable by anyone
+      let permissions = await this.drs.getKeyData(key, 'permissions', {from: accounts[1]})		
+      		
+      //because we are using bytes32 we have to do some processing 
+      //to get it back to how we sent it, using the string type 
+      //would avoid this but would prevent this functions from 
+      //being useful to other contracts		
+      web3.toAscii(permissions).replace(/\0/g,'').should.equal('read')		
+      		
+   })		
+  		
+  it('A non-owner should not be able to store key data', async function() {		
+    let tx = await this.drs.createKey(this.service)		
+    let key = tx.logs[0].args._key		
+
+    await this.drs.setKeyData(key, 'permissions', 'read', {from: accounts[1]})		
+    let permissions = await this.drs.getKeyData(key, 'permissions', {from: accounts[1]})		
+    permissions.should.be.equal('0x0000000000000000000000000000000000000000000000000000000000000000') //mapping default (unset) value
+  })
+
+})  

@@ -38,7 +38,7 @@ contract('HealthDRS :: Logging', function(accounts) {
     let tx = await this.drs.createKey(this.service)
     let key = tx.logs[0].args._key
 
-    tx = await this.drs.logAccess(this.service, key, 'datastring')
+    tx = await this.drs.logAccess(key, 'datastring')
     tx.logs[0].args._owner.should.equal(accounts[0]);    
     tx.logs[0].args._from.should.equal(this.service);        
     tx.logs[0].args._to.should.equal(key);    
