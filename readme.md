@@ -58,7 +58,7 @@ $ truffle test
 
 ## Notes
 
-This repository holds the code for the smart-contract portion of a three-part system consiting of:
+This repository holds the code for the smart-contract portion of a three-part system consisting of:
 
 * A smart-contract for maintaining decentralized records of trusted entities via issuable keys and auditable access logs. 
 * Decentralized application that uses this smart-contract for issuing and managing keys and storing related service data for those keys.
