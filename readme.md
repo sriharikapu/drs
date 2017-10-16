@@ -1,7 +1,7 @@
 # Health Nexus :: DRS 
+[![Hex.pm](https://img.shields.io/hexpm/l/plug.svg)]() 
 <img align="right" src="./assets/HN_token_transparent.png?raw=true" height="348">
-An Ethereum smart-contract for creating a decentralized record service using the EIP 20 token Health Cash (HLTH). This is project is part of phase one of Health Nexus, the public permissioned blockchain for healthcare. 
-
+An Ethereum smart-contract for creating a decentralized record service using the EIP 20 token Health Cash (HLTH). This is project is part of phase one of Health Nexus, the public permissioned blockchain for healthcare.<br> 
 
 Features:
 
@@ -55,6 +55,18 @@ From your command line:
 # Run Test Suite
 $ truffle test
 ```
+
+## Notes
+
+This repository holds the code for the smart-contract portion of a three-part system consiting of:
+
+* A smart-contract for maintaining decentralized records of trusted entities via issuable keys and auditable access logs. 
+* Decentralized application that uses this smart-contract for issuing and managing keys and storing related service data for those keys.
+* An off-chain service that runs concurrently with an Ethereum node that uses signed transactions and keys to verify and route requests and log data access.
+
+Health DRS is developed with the functionality to support many different dapp/services as most of the key functionality is permissioned. For example, selling, trading, and sharing of keys are all permissioned and left off by default allowing for a simple single-issuer application. In addition allowing the service to set arbitrary key data for each key enables the dapp to extend the provided functionality however needed. 
+
+For example, one could create keys with limited uses, or that expired at a specific time, or that required two-factor authentication. 
 
 ## Credits
 
