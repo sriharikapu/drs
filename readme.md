@@ -1,6 +1,8 @@
 # Health Nexus :: DRS 
 <img align="right" src="./assets/HN_token_transparent.png?raw=true" height="348">
-Ethereum smart contract for creating a decentralized record service using the EIP 20 token Health Cash (HLTH). This is project is part of phase one of Health Nexus, the public permissioned blockchain for healthcare. 
+An Ethereum smart-contract for creating a decentralized record service using the EIP 20 token Health Cash (HLTH). This is project is part of phase one of Health Nexus, the public permissioned blockchain for healthcare. 
+
+Features:
 
 * Create services by registering service urls
 * Create and issue keys for services
@@ -12,17 +14,19 @@ Ethereum smart contract for creating a decentralized record service using the EI
 <details>
  <summary><strong>Table of Contents</strong> (click to expand)</summary>
 
-* [Installation](#-installation)
-* [Configuration](#️-configuration)
-* [Notes](#-notes)
-* [Resources](#-resources)
-* [Credits](#️-credits)
-* [License](#-license)
+* [Installation](#installation)
+* [Testing](#️testing)
+* [Notes](#notes)
+* [Resources](#resources)
+* [Credits](#️credits)
+* [License](#license)
 </details>
 
 ## Installation
 
-To clone and use this smart contract, you'll need [Git](https://git-scm.com) and [Node.js](https://nodejs.org/en/download/) (which comes with [npm](http://npmjs.com)), [Truffle](http://truffleframework.com/), and a local development Ethereum node on your computer ([Geth](https://github.com/ethereum/go-ethereum), [Parity](https://github.com/paritytech/parity), [TestRPC](https://github.com/ethereumjs/testrpc)). From your command line:
+To clone and use this smart contract, you'll need [Git](https://git-scm.com) and [Node.js](https://nodejs.org/en/download/) (which comes with [npm](http://npmjs.com)), [Truffle](http://truffleframework.com/), and a local development Ethereum node on your computer ([Geth](https://github.com/ethereum/go-ethereum), [Parity](https://github.com/paritytech/parity)). 
+
+From your command line:
 
 ```bash
 # Clone this repository
@@ -41,11 +45,13 @@ $ truffle compile
 $ truffle migrate
 ```
 
-## Credits
+## Testing
 
-* **David Akers** - *Initial work* - [davidmichaelakers](https://github.com/davidmichaelakers)
+Running the the test suite requires your dev node have two unlocked accounts provisioned with sufficient ether to pay the transaction costs. About TestRPC, the tests were not written for TestRPC which handles contract throws differently than geth or parity. This is a known [issue](https://github.com/ethereumjs/testrpc/issues/39). 
 
+From your command line:
 
-## Acknowledgments
-
-* [SimplyVital Health](https://www.simplyvitalhealth.com/)
+```bash
+# Run Test Suite
+$ truffle test
+```
