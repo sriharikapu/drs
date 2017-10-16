@@ -1,63 +1,47 @@
+# Health Nexus :: DRS 
+<img align="right" src="./assets/HN_token_transparent.png?raw=true" height="348">
+Ethereum smart contract for creating a decentralized record service using the EIP 20 token Health Cash (HLTH). This is project is part of phase one of Health Nexus, the public permissioned blockchain for healthcare. 
 
-## Health Cash :: DRS
+* Create services by registering service urls
+* Create and issue keys for services
+* Permission keys for sharing, selling, and trading
+* Share keys with multiple accounts
+* Sell keys for Health Cash (HLTH)
+* Trade keys
 
-This solidity smart contract provides the functionality needed to manage the keys used in a decentralized record system. 
+<details>
+ <summary><strong>Table of Contents</strong> (click to expand)</summary>
 
-## Getting Started
+* [Installation](#-installation)
+* [Configuration](#️-configuration)
+* [Notes](#-notes)
+* [Resources](#-resources)
+* [Credits](#️-credits)
+* [License](#-license)
+</details>
 
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. 
+## Installation
 
-### Prerequisites
+To clone and use this smart contract, you'll need [Git](https://git-scm.com) and [Node.js](https://nodejs.org/en/download/) (which comes with [npm](http://npmjs.com)), [Truffle](http://truffleframework.com/), and a local development Ethereum node on your computer ([Geth](https://github.com/ethereum/go-ethereum), [Parity](https://github.com/paritytech/parity), [TestRPC](https://github.com/ethereumjs/testrpc)). From your command line:
 
-To run this locally you will need the [Truffle framework](http://truffleframework.com/), node.js, npm, and a local development ethereum node
+```bash
+# Clone this repository
+$ git clone https://github.com/Health-Nexus/drs.git
 
+# Go into the repository
+$ cd drs
 
-### Installing
-
-Install truffle
-
-```
-
-$ npm install -g truffle
-
-```
-
-Once you have cloned the project, from inside the project directory you'll need to run npm install to get the 
-testing libraries. 
-
-```
-
+# Install dependencies
 $ npm install
 
-```
-
-Start up your ethereum node then compile and deploy your contracts. You'll need two unlocked accounts on your
-ethereum client to be able to run the token transfer tests successfully.
-
-```
-
+# Compile contracts
 $ truffle compile
+
+# Deploy contracts
 $ truffle migrate
-
 ```
 
-
-## Running the tests
-
-Once the contracts are deployed to your development ethereum node you can run the test like this. 
-
-```
-
-$ truffle test
-
-```
-
-### Test Overview
-
-
-
-
-## Authors
+## Credits
 
 * **David Akers** - *Initial work* - [davidmichaelakers](https://github.com/davidmichaelakers)
 
