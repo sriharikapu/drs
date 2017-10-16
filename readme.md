@@ -1,7 +1,7 @@
 # Health Nexus :: DRS 
+[![Hex.pm](https://img.shields.io/hexpm/l/plug.svg)]()
 <img align="right" src="./assets/HN_token_transparent.png?raw=true" height="348">
-[![Hex.pm](https://img.shields.io/hexpm/l/plug.svg)]() 
-
+ 
 An Ethereum smart-contract for creating a decentralized record service using the EIP 20 token Health Cash (HLTH). This is project is part of phase one of Health Nexus, the public permissioned blockchain for healthcare.<br> 
 
 Features:
