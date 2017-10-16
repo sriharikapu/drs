@@ -56,6 +56,17 @@ From your command line:
 $ truffle test
 ```
 
+## Credits
+
+Major dependencies:
+
+* [Truffle](https://github.com/trufflesuite/truffle)
+
+Contributors: 
+
+* **Lucas Hendren** - [lhendre](https://github.com/lhendre)
+* **David Akers** - [davidmichaelakers](https://github.com/davidmichaelakers)
+
 ## License
 
 [Apache License 2.0](https://github.com/Health-Nexus/drs/blob/master/LICENSE)
