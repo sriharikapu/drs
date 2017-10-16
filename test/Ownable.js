@@ -26,7 +26,7 @@ contract('HealthDRS :: Ownable', function(accounts) {
   })
 
   it('should prevent non-owners from transfering', async function() {
-    const other = accounts[2]
+    const other = accounts[1]
     let owner = await this.ownable.owner.call()
     owner.should.not.be.equal(other)    
 
