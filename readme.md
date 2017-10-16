@@ -2,6 +2,7 @@
 <img align="right" src="./assets/HN_token_transparent.png?raw=true" height="348">
 An Ethereum smart-contract for creating a decentralized record service using the EIP 20 token Health Cash (HLTH). This is project is part of phase one of Health Nexus, the public permissioned blockchain for healthcare. 
 
+
 Features:
 
 * Create services by registering service urls
@@ -17,7 +18,6 @@ Features:
 * [Installation](#installation)
 * [Testing](#️testing)
 * [Notes](#notes)
-* [Resources](#resources)
 * [Credits](#️credits)
 * [License](#license)
 </details>
@@ -55,3 +55,7 @@ From your command line:
 # Run Test Suite
 $ truffle test
 ```
+
+## License
+
+[Apache License 2.0](https://github.com/Health-Nexus/drs/blob/master/LICENSE)
