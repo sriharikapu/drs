@@ -72,8 +72,7 @@ For example, one could create keys with limited uses, or that expired at a speci
 
 ## Usage
 
-For an overview of the smart-contracts functionaltiy review the [wiki](https://github.com/Health-Nexus/drs/wiki). 
-
+For an overview of the smart-contract's functionaltiy review the [wiki](https://github.com/Health-Nexus/drs/wiki). 
 
 ## Credits
 
