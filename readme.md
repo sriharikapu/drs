@@ -19,6 +19,7 @@ Features:
 * [Installation](#installation)
 * [Testing](#️testing)
 * [Notes](#notes)
+* [Usage](#usage)
 * [Credits](#️credits)
 * [License](#license)
 </details>
@@ -68,6 +69,11 @@ This repository holds the code for the smart-contract portion of a three-part sy
 Health DRS is developed with the functionality to support many different dapp/services as most of the key functionality is permissioned. For example, selling, trading, and sharing of keys are all permissioned and left off by default allowing for a simple single-issuer application. In addition allowing the service to set arbitrary key data for each key enables the dapp to extend the provided functionality however needed. 
 
 For example, one could create keys with limited uses, or that expired at a specific time, or that required two-factor authentication. 
+
+## Usage
+
+For an overview of the smart-contracts functionaltiy review the [wiki](https://github.com/Health-Nexus/drs/wiki). 
+
 
 ## Credits
 
