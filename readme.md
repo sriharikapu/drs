@@ -29,7 +29,7 @@ Features:
 
 This smart-contract enables the registration of data services bound to unique endpoint urls. Registering a service creates an immutable record of that service and associated owner. Service owners can then create and issue keys for that service.
 
-Keys are unique ownable records that can be used to verify the identity of valid service consumers though a process that requires authenticating messages signed by the key owner. Service owners can permission keys to extend the functionality to enable trading, sharing, and the selling of keys using Health Cash (HLTH).
+Keys are unique ownable records that can be used to verify the identity of valid service consumers though a process that requires authenticating messages signed by the key owner. Service owners can permission keys extending the functionality to enable trading, sharing, and the selling of keys using Health Cash (HLTH).
 
 
 ## Installation
